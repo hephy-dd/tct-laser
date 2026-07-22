@@ -1,0 +1,20 @@
+emulators:
+  scope:
+    model: urn:comet:model:rohde_schwarz:rtp164
+    port: 11001
+    termination: "\n"
+  laser:
+    model: urn:comet:model:nkt_photonics:pilas
+    port: 11002
+  stage:
+    model: urn:comet:model:itk:corvustt
+    port: 11003
+  powermeter1:
+    model: urn:comet:model:thorlabs:pm100
+    port: 11004
+  powermeter2:
+    model: urn:comet:model:thorlabs:pm100
+    port: 11005
+  powermeter3:
+    model: urn:comet:model:thorlabs:pm100
+    port: 11006

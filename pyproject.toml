@@ -1,0 +1,49 @@
+[build-system]
+requires = ["uv_build>=0.11.15,<0.12.0"]
+build-backend = "uv_build"
+
+[project]
+name = "tct-laser"
+version = "0.1.0"
+description = "TCT-Laser control and measurements"
+readme = "README.md"
+authors = [
+    { name = "Bernhard Arnold", email = "bernhard.arnold@oeaw.ac.at" }
+]
+keywords = [
+    "laser",
+    "instrumentation",
+    "PySide6",
+    "VISA",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Manufacturing",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering",
+    "Topic :: System :: Hardware",
+]
+requires-python = ">=3.14"
+dependencies = [
+    "comet @ https://github.com/hephy-dd/comet/archive/refs/tags/v1.5.1.zip",
+    "matplotlib>=3.11.0",
+    "msgspec>=0.21.1",
+    "numpy~=2.4.4",
+    "pathvalidate>=3.3.1",
+    "pyqtgraph~=0.14.0",
+    "pyside6~=6.11.0",
+    "pyvisa~=1.14",
+    "pyvisa-py~=0.7",
+    "pyyaml~=6.0.3",
+]
+
+[project.urls]
+Homepage = "https://www.oeaw.ac.at/en/mbi/research/detector-development"
+Repository = "https://github.com/hephy-dd/tct-laser"
+Documentation = "https://github.com/hephy-dd/tct-laser"
+
+[project.scripts]
+tct-laser = "tct_laser.__main__:main"
