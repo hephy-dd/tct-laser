@@ -11,9 +11,9 @@ from .messages import (
     Disconnect,
     Failed,
     Finished,
-    ParameterChanged,
     StatusMessage,
     StatusProgress,
+    WaveformChanged,
 )
 from .station import Station
 from .utils import Waveform
@@ -125,14 +125,14 @@ class WorkerContext:
     def fail(self, exc: Exception) -> None:
         self._tell(Failed(exc))
 
-    def set_message(self, text: str) -> None:
+    def set_status_message(self, text: str) -> None:
         self._tell(StatusMessage(text))
 
-    def set_progress(self, step: int, steps: int) -> None:
+    def set_status_progress(self, step: int, steps: int) -> None:
         self._tell(StatusProgress(step, steps))
 
-    def set_parameter(self, parameter: Any) -> None:
-        self._tell(ParameterChanged(parameter))
+    def publish_message(self, message: Any) -> None:
+        self._tell(message)
 
     def is_live_waveform(self) -> bool:
         with self._state.lock:
@@ -142,8 +142,8 @@ class WorkerContext:
         with self._state.lock:
             return self._state.waveform_channels.copy()
 
-    def set_waveform(self, waveform: Waveform) -> None:
-        self._tell(waveform)
+    def publish_waveform(self, waveform: Waveform) -> None:
+        self._tell(WaveformChanged(waveform))
 
     def set_live_waveform_allowed(self, state: bool) -> None:
         with self._state.lock:

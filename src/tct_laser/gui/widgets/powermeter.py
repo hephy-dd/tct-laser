@@ -25,13 +25,15 @@ class PowerMeterGroupBox(QtWidgets.QGroupBox):
         self._wavelength_spin_box.setValue(370)
         self._wavelength_spin_box.setSuffix(" nm")
         self._wavelength_spin_box.setStatusTip("Wavelength (350-1100 nm)")
-        self._wavelength_spin_box.editingFinished.connect(self.wavelength_editied)
+        self._wavelength_spin_box.editingFinished.connect(self._on_wavelength_editied)
 
         self._average_count_spin_box = QtWidgets.QSpinBox(self)
         self._average_count_spin_box.setRange(1, 1000)
         self._average_count_spin_box.setValue(100)
         self._average_count_spin_box.setStatusTip("Average Count (1-1000)")
-        self._average_count_spin_box.editingFinished.connect(self.average_count_editied)
+        self._average_count_spin_box.editingFinished.connect(
+            self._on_average_count_editied
+        )
 
         layout = QtWidgets.QFormLayout(self)
         layout.addRow("Power", self._power_line_edit)
@@ -51,9 +53,6 @@ class PowerMeterGroupBox(QtWidgets.QGroupBox):
     def wavelength(self) -> int:
         return self._wavelength_spin_box.value()
 
-    def wavelength_editied(self) -> None:
-        self.wavelength_changed.emit(self.wavelength())
-
     def set_wavelength(self, wavelength: int) -> None:
         self._wavelength_spin_box.setValue(wavelength)  # clamp
 
@@ -64,12 +63,17 @@ class PowerMeterGroupBox(QtWidgets.QGroupBox):
     def average_count(self) -> int:
         return self._average_count_spin_box.value()
 
-    def average_count_editied(self) -> None:
-        self.average_count_changed.emit(self.average_count())
-
     def set_average_count(self, average_count: int) -> None:
         self._average_count_spin_box.setValue(average_count)  # clamp
 
     def update_average_count(self, average_count: int | None) -> None:
         if average_count is not None:
             update_spin_box(self._average_count_spin_box, average_count)
+
+    @QtCore.Slot()
+    def _on_wavelength_editied(self) -> None:
+        self.wavelength_changed.emit(self.wavelength())
+
+    @QtCore.Slot()
+    def _on_average_count_editied(self) -> None:
+        self.average_count_changed.emit(self.average_count())

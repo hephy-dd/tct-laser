@@ -26,21 +26,21 @@ class LaserGroupBox(QtWidgets.QGroupBox):
         self._output_button = QtWidgets.QCheckBox(self)
         self._output_button.setText("Enabled")
         self._output_button.setCheckable(True)
-        self._output_button.toggled.connect(self._output_changed)
+        self._output_button.toggled.connect(self._on_output_changed)
 
         self._frequency_spin_box = QtWidgets.QDoubleSpinBox(self)
         self._frequency_spin_box.setDecimals(0)
         self._frequency_spin_box.setSuffix(" Hz")
         self._frequency_spin_box.setRange(1, 1_000_000)
         self._frequency_spin_box.setValue(1_000)
-        self._frequency_spin_box.editingFinished.connect(self._frequency_editied)
+        self._frequency_spin_box.editingFinished.connect(self._on_frequency_editied)
 
         self._tune_spin_box = QtWidgets.QDoubleSpinBox(self)
         self._tune_spin_box.setDecimals(1)
         self._tune_spin_box.setSuffix(" %")
         self._tune_spin_box.setRange(0, 100)
         self._tune_spin_box.setValue(50)
-        self._tune_spin_box.editingFinished.connect(self._tune_editied)
+        self._tune_spin_box.editingFinished.connect(self._on_tune_editied)
 
         self._laser_head_temperature_line_edit = QtWidgets.QLineEdit(self)
         self._laser_head_temperature_line_edit.setReadOnly(True)
@@ -54,26 +54,6 @@ class LaserGroupBox(QtWidgets.QGroupBox):
         layout.addRow("Tune", self._tune_spin_box)
         layout.addRow("Head Temp.", self._laser_head_temperature_line_edit)
         layout.addRow("Diode Temp.", self._laser_diode_temperature_line_edit)
-
-    @QtCore.Slot(bool)
-    def _output_changed(self, state: bool) -> None:
-        if self._last_output != state:
-            self._last_output = state
-            self.output_changed.emit(state)
-
-    @QtCore.Slot()
-    def _frequency_editied(self) -> None:
-        value = self._frequency_spin_box.value()
-        if self._last_frequency != value:
-            self._last_frequency = value
-            self.frequency_changed.emit(value)
-
-    @QtCore.Slot()
-    def _tune_editied(self) -> None:
-        value = self._tune_spin_box.value()
-        if self._last_tune != value:
-            self._last_tune = value
-            self.tune_changed.emit(value)
 
     def output(self) -> bool:
         return self._output_button.isChecked()
@@ -113,3 +93,23 @@ class LaserGroupBox(QtWidgets.QGroupBox):
             self._laser_diode_temperature_line_edit.setText(text)
         else:
             self._laser_diode_temperature_line_edit.setText("n/a")
+
+    @QtCore.Slot(bool)
+    def _on_output_changed(self, state: bool) -> None:
+        if self._last_output != state:
+            self._last_output = state
+            self.output_changed.emit(state)
+
+    @QtCore.Slot()
+    def _on_frequency_editied(self) -> None:
+        value = self._frequency_spin_box.value()
+        if self._last_frequency != value:
+            self._last_frequency = value
+            self.frequency_changed.emit(value)
+
+    @QtCore.Slot()
+    def _on_tune_editied(self) -> None:
+        value = self._tune_spin_box.value()
+        if self._last_tune != value:
+            self._last_tune = value
+            self.tune_changed.emit(value)

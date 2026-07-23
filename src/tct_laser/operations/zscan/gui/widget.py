@@ -2,23 +2,19 @@ import math
 from typing import Any, cast
 
 import msgspec
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtWidgets
+
+from tct_laser.gui.operation import OperationWidget
 
 from ..core.zscan import AutoFocusZ, ZScanOperation, ZScanSeries, ZScanXYSeries
 from .plotwidgets import ZScanHPlotWidget, ZScanPlotWidget
 
 
-class ZScanWidget(QtWidgets.QWidget):
-    start_triggered = QtCore.Signal()
-    abort_triggered = QtCore.Signal()
-
+class ZScanWidget(OperationWidget):
     def __init__(self, station, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
         self.setWindowTitle("Z Scan")
-
-        self.run_action = QtGui.QAction("&Z Scan", self)
-        self.start_triggered.connect(self.run_action.trigger)
 
         self.z_start_offset_spin_box = QtWidgets.QSpinBox(self)
         self.z_start_offset_spin_box.setRange(-10_000, 10_000)
@@ -148,8 +144,8 @@ class ZScanWidget(QtWidgets.QWidget):
             slope_v_per_um=series.slope_v_per_um,
         )
 
-    def set_parameter(self, parameter: Any) -> None:
-        match parameter:
+    def handle_message(self, message: Any) -> None:
+        match message:
             case AutoFocusZ(autofocus):
                 self.set_autofocus_z_um(autofocus)
             case ZScanXYSeries() as series:
@@ -174,7 +170,7 @@ class ZScanWidget(QtWidgets.QWidget):
             average_count=self.average_count_spin_box.value(),
         )
 
-    def setConfig(self, config: ZScanOperation) -> None:
+    def set_config(self, config: ZScanOperation) -> None:
         self.z_start_offset_spin_box.setValue(config.z_start_offset_um)
         self.z_stop_offset_spin_box.setValue(config.z_stop_offset_um)
         self.z_steps_spin_box.setValue(config.z_steps)
@@ -197,7 +193,7 @@ class ZScanWidget(QtWidgets.QWidget):
             base = msgspec.to_builtins(self.config())
             base.update(loaded)
 
-            self.setConfig(msgspec.convert(base, type=ZScanOperation))
+            self.set_config(msgspec.convert(base, type=ZScanOperation))
         except msgspec.DecodeError, msgspec.ValidationError, TypeError:
             # Ignore invalid or incompatible settings.
             pass

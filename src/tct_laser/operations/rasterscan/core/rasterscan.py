@@ -43,9 +43,10 @@ class RasterScanOperation(msgspec.Struct, frozen=True):
         run_raster_scan(context, self)
 
 
-class SetRaster(msgspec.Struct, frozen=True):
+class CreateRaster(msgspec.Struct, frozen=True):
     raster_type: RasterType
-    raster: NDArray
+    width: int
+    height: int
 
 
 class UpdateRasterValue(msgspec.Struct, frozen=True):
@@ -83,8 +84,8 @@ def run_raster_scan(context: Context, config: RasterScanOperation) -> None:
     base_output_path = context.output_path()
     output_path = str(Path(base_output_path) / sample_name)
 
-    context.set_message("Raster Scan...")
-    context.set_progress(0, 0)
+    context.set_status_message("Raster Scan...")
+    context.set_status_progress(0, 0)
 
     channel = config.source_channel
     if channel not in context.waveform_channels():
@@ -122,18 +123,18 @@ def run_raster_scan(context: Context, config: RasterScanOperation) -> None:
 
     logger.info("create raster: peak, %d, %d", n_points_x, n_points_y)
     raster_peak = create_raster(n_points_x, n_points_y)
-    context.set_parameter(SetRaster(RasterType.PEAK, raster_peak.copy()))
+    context.publish_message(CreateRaster(RasterType.PEAK, n_points_x, n_points_y))
 
     logger.info("create raster: area, %d, %d", n_points_x, n_points_y)
     raster_area = create_raster(n_points_x, n_points_y)
-    context.set_parameter(SetRaster(RasterType.AREA, raster_area.copy()))
+    context.publish_message(CreateRaster(RasterType.AREA, n_points_x, n_points_y))
 
     logger.info("create raster: t_max, %d, %d", n_points_x, n_points_y)
     raster_t_max = create_raster(n_points_x, n_points_y)
-    context.set_parameter(SetRaster(RasterType.T_MAX, raster_t_max.copy()))
+    context.publish_message(CreateRaster(RasterType.T_MAX, n_points_x, n_points_y))
 
-    context.set_message("Raster Scan (0, 0)")
-    context.set_progress(0, total_steps)
+    context.set_status_message("Raster Scan (0, 0)")
+    context.set_status_progress(0, total_steps)
 
     # The current stage position is the reference point around which the
     # offsets define the scan window.
@@ -211,7 +212,7 @@ def run_raster_scan(context: Context, config: RasterScanOperation) -> None:
     file_writer.write_table_header(table_columns)
 
     try:
-        context.set_message("Raster Scan moving to start...")
+        context.set_status_message("Raster Scan moving to start...")
         session.move_absolute(start_pos)
 
         e = Estimate(total_steps)
@@ -233,29 +234,31 @@ def run_raster_scan(context: Context, config: RasterScanOperation) -> None:
             # Peak
             mean_peak = float(np.max(wf.y))
             set_raster_value(raster_peak, x, y, mean_peak)
-            context.set_parameter(UpdateRasterValue(RasterType.PEAK, x, y, mean_peak))
+            context.publish_message(UpdateRasterValue(RasterType.PEAK, x, y, mean_peak))
             logger.info("raster[%s,%s].peak: %.3G", x, y, mean_peak)
 
             # Area
             mean_area = pulse_area_window(wf.x, wf.y)
             set_raster_value(raster_area, x, y, mean_area)
-            context.set_parameter(UpdateRasterValue(RasterType.AREA, x, y, mean_area))
+            context.publish_message(UpdateRasterValue(RasterType.AREA, x, y, mean_area))
             logger.info("raster[%s,%s].area: %.3G", x, y, mean_area)
 
             # Time of maximum
             imax = int(np.argmax(wf.y))
             mean_t_max = float(wf.x[imax])
             set_raster_value(raster_t_max, x, y, mean_t_max)
-            context.set_parameter(UpdateRasterValue(RasterType.T_MAX, x, y, mean_t_max))
+            context.publish_message(
+                UpdateRasterValue(RasterType.T_MAX, x, y, mean_t_max)
+            )
             logger.info("raster[%s,%s].t_max: %.3G", x, y, mean_t_max)
 
             e.advance()
             elapsed = timedelta(seconds=int(e.elapsed.total_seconds()))
             remaining = timedelta(seconds=int(e.remaining.total_seconds()))
-            context.set_message(
+            context.set_status_message(
                 f"Raster Scan (x={x}, y={y}) Elapsed {elapsed}, ETA {remaining}"
             )
-            context.set_progress(index + 1, total_steps)
+            context.set_status_progress(index + 1, total_steps)
 
             file_writer.write_table_row(
                 [
@@ -274,11 +277,11 @@ def run_raster_scan(context: Context, config: RasterScanOperation) -> None:
         # which the scan was started.
         file_writer.write_footer()
 
-        context.set_message("Raster Scan moving back to initial_pos position...")
+        context.set_status_message("Raster Scan moving back to initial_pos position...")
         session.move_absolute(initial_pos)
 
-    context.set_message("Writing output files...")
-    context.set_progress(0, 0)
+    context.set_status_message("Writing output files...")
+    context.set_status_progress(0, 0)
 
     logger.info("generating plots...")
 
@@ -310,4 +313,4 @@ def run_raster_scan(context: Context, config: RasterScanOperation) -> None:
     except Exception:
         logging.exception("failed to write YZ profile plot")
 
-    context.set_message("Raster Scan done.")
+    context.set_status_message("Raster Scan done.")

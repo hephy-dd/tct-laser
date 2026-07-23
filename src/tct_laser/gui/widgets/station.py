@@ -11,6 +11,7 @@ class StationGroupBox(QtWidgets.QGroupBox):
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
+
         self.setTitle("Station")
 
         self._instrument_labels: dict[str, QtWidgets.QLabel] = {}

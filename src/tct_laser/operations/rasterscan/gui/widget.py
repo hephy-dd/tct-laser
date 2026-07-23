@@ -6,14 +6,15 @@ import numpy as np
 import pyqtgraph as pg
 from numpy.lib.stride_tricks import sliding_window_view
 from numpy.typing import NDArray
-from PySide6 import QtCore, QtGui, QtWidgets
+from PySide6 import QtCore, QtWidgets
 
 from tct_laser.core.messages import EnabledChannelsChanged
+from tct_laser.gui.operation import OperationWidget
 
 from ..core.rasterscan import (
+    CreateRaster,
     RasterScanOperation,
     RasterType,
-    SetRaster,
     UpdateRasterValue,
     create_raster,
 )
@@ -221,17 +222,11 @@ class RasterScanPlotWidget(QtWidgets.QWidget):
         self._update_raster_2()
 
 
-class RasterScanWidget(QtWidgets.QWidget):
-    start_triggered = QtCore.Signal()
-    abort_triggered = QtCore.Signal()
-
+class RasterScanWidget(OperationWidget):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
         self.setWindowTitle("Raster Scan")
-
-        self.run_action = QtGui.QAction("&Raster Scan", self)
-        self.start_triggered.connect(self.run_action.trigger)
 
         self.left_spin_box = QtWidgets.QSpinBox(self)
         self.left_spin_box.setRange(-1_000_000, 0)
@@ -411,17 +406,17 @@ class RasterScanWidget(QtWidgets.QWidget):
         index = self.mode_combo_box.findData(mode)
         self.mode_combo_box.setCurrentIndex(index)
 
-    def set_parameter(self, parameter: Any) -> None:
-        match parameter:
-            case SetRaster(raster_type, raster):
-                self.set_raster(raster_type, raster)
+    def handle_message(self, message: Any) -> None:
+        match message:
+            case CreateRaster(raster_type, width, height):
+                self.create_raster(raster_type, width, height)
             case UpdateRasterValue(raster_type, x, y, value):
                 self.update_raster_value(raster_type, x, y, value)
             case EnabledChannelsChanged(channels):
                 self.set_source_channels(channels)
 
-    def set_raster(self, raster_type: RasterType, raster: NDArray) -> None:
-        self._raster_cache[raster_type] = raster
+    def create_raster(self, raster_type: RasterType, width: int, height: int) -> None:
+        self._raster_cache[raster_type] = create_raster(width, height)
 
     def update_raster_value(
         self, raster_type: RasterType, x: int, y: int, value: float
@@ -443,7 +438,7 @@ class RasterScanWidget(QtWidgets.QWidget):
             mode=self.mode(),
         )
 
-    def setConfig(self, config: RasterScanOperation) -> None:
+    def set_config(self, config: RasterScanOperation) -> None:
         self.left_spin_box.setValue(-abs(config.offset_left))
         self.right_spin_box.setValue(config.offset_right)
         self.top_spin_box.setValue(-abs(config.offset_top))
@@ -466,7 +461,7 @@ class RasterScanWidget(QtWidgets.QWidget):
             base = msgspec.to_builtins(self.config())
             base.update(loaded)
 
-            self.setConfig(msgspec.convert(base, type=RasterScanOperation))
+            self.set_config(msgspec.convert(base, type=RasterScanOperation))
         except msgspec.DecodeError, msgspec.ValidationError, TypeError:
             # Ignore invalid or incompatible settings.
             pass

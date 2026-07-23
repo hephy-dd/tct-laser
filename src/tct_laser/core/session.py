@@ -26,7 +26,7 @@ class Session:
                 return False
             self.context.sleep(interval)
             position = stage.get_position()
-            self.context.set_parameter(PositionChanged(position))
+            self.context.publish_message(PositionChanged(position))
             if not stage.is_moving():
                 return True
         raise TimeoutError("Stage move timeout")
@@ -56,5 +56,5 @@ class Session:
 
             scope.acquire()
             waveform = scope.read_waveform(channel)
-            self.context.set_waveform(waveform)
+            self.context.publish_waveform(waveform)
             return waveform
