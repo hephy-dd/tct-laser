@@ -9,7 +9,6 @@ from pathvalidate import sanitize_filepath
 from .messages import (
     Connect,
     Disconnect,
-    EnabledChannelsChanged,
     Failed,
     Finished,
     StatusMessage,
@@ -74,7 +73,6 @@ class MainContext:
     def set_waveform_channels(self, channels: Iterable[str]) -> None:
         with self._state.lock:
             self._state.waveform_channels = list(channels)
-            self.tell(EnabledChannelsChanged(self._state.waveform_channels))
 
     def set_sample_name(self, sample_name: str) -> None:
         with self._state.lock:

@@ -491,6 +491,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_scope_channels_changed(self, channels: Iterable[str]) -> None:
         channels = list(channels)
         self._context.set_waveform_channels(channels)
+        self._dispatch_message(messages.EnabledChannelsChanged(channels))
 
     @QtCore.Slot()
     def show_settings(self) -> None:
