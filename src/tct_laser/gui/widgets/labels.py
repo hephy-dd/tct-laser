@@ -10,16 +10,16 @@ class ErrorLabel(QtWidgets.QLabel):
             "QLabel{color: white; background-color: rgb(200,0,0); padding: 8px;}"
         )
 
-        self.close_button = QtWidgets.QPushButton("x", self)
-        self.close_button.setFixedSize(20, 20)
-        self.close_button.clicked.connect(self.hide)
-        self.close_button.clicked.connect(self.clear)
+        self._close_button = QtWidgets.QPushButton("x", self)
+        self._close_button.setFixedSize(20, 20)
+        self._close_button.clicked.connect(self.hide)
+        self._close_button.clicked.connect(self.clear)
 
-    def show_exception(self, exc: Exception) -> None:
-        self.setText(f"ERROR: {exc}")
+    def show_error(self, text: str) -> None:
+        self.setText(f"ERROR: {text}")
         self.show()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         # Position button on the right inside label
-        self.close_button.move(self.width() - 24, (self.height() - 20) // 2)
+        self._close_button.move(self.width() - 24, (self.height() - 20) // 2)

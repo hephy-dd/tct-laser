@@ -167,9 +167,9 @@ def run_z_scan(context: Context, config: ZScanOperation) -> None:
     completed_acquisitions = 0
     aborted = False
 
-    context.set_message("Z Scan...")
-    context.set_progress(0, total_acquisitions)
-    context.set_parameter(AutoFocusZ(math.nan))
+    context.set_status_message("Z Scan...")
+    context.set_status_progress(0, total_acquisitions)
+    context.publish_message(AutoFocusZ(math.nan))
     publish_focus_series(context, scanned_z_um, focus_slopes)
 
     try:
@@ -297,7 +297,7 @@ def run_z_scan(context: Context, config: ZScanOperation) -> None:
                     best_score = score
                     best_z_offset_um = z_offset_um
 
-                    context.set_parameter(
+                    context.publish_message(
                         AutoFocusZ(initial_z_mm + best_z_offset_um * UM_TO_MM)
                     )
 
@@ -335,20 +335,20 @@ def run_z_scan(context: Context, config: ZScanOperation) -> None:
 
     if math.isfinite(best_z_offset_um):
         best_absolute_z_mm = initial_z_mm + best_z_offset_um * UM_TO_MM
-        context.set_parameter(AutoFocusZ(best_absolute_z_mm))
+        context.publish_message(AutoFocusZ(best_absolute_z_mm))
 
         if aborted:
-            context.set_message(
+            context.set_status_message(
                 f"Z Scan aborted. Best measured Z offset: {best_z_offset_um:.1f} µm."
             )
         else:
-            context.set_message(
+            context.set_status_message(
                 f"Z Scan done. Best Z offset: {best_z_offset_um:.1f} µm."
             )
     elif aborted:
-        context.set_message("Z Scan aborted before a focus result was found.")
+        context.set_status_message("Z Scan aborted before a focus result was found.")
     else:
-        context.set_message("Z Scan finished without a valid focus result.")
+        context.set_status_message("Z Scan finished without a valid focus result.")
 
 
 def waveform_amplitude(waveform: Waveform) -> float:
@@ -386,7 +386,7 @@ def publish_xy_series(
     processing an earlier queued message.
     """
 
-    context.set_parameter(
+    context.publish_message(
         ZScanXYSeries(
             z_um=float(z_um),
             xy_um=np.array(
@@ -410,7 +410,7 @@ def publish_focus_series(
 ) -> None:
     """Publish an independent copy of the accumulated autofocus results."""
 
-    context.set_parameter(
+    context.publish_message(
         ZScanSeries(
             z_um=np.array(
                 z_um,
@@ -441,13 +441,13 @@ def update_progress(
     elapsed = timedelta(seconds=int(estimate.elapsed.total_seconds()))
     remaining = timedelta(seconds=int(estimate.remaining.total_seconds()))
 
-    context.set_message(
+    context.set_status_message(
         f"Z Scan ({completed}/{total}) | "
         f"Z {z_index + 1}/{z_count}: {z_offset_um:.1f} µm | "
         f"XY {xy_index + 1}/{xy_count} | "
         f"Elapsed {elapsed}, ETA {remaining}"
     )
-    context.set_progress(completed, total)
+    context.set_status_progress(completed, total)
 
 
 def move_to_relative_offset(

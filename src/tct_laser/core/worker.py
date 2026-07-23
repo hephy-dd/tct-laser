@@ -102,7 +102,7 @@ class Worker:
 
     def handle_failure(self, exc: Exception) -> None:
         self.context.fail(exc)
-        self.context.set_message("Error")
+        self.context.set_status_message("Error")
         self.context.drain_inbox()
         self.context.sleep(1)
 
@@ -140,8 +140,8 @@ def configure_power_meter(power_meter: PowerMeterActor, parameter) -> None:
 
 
 def run_configure(context: Context, message: ConfigureMessage) -> None:
-    context.set_message("Configure...")
-    context.set_progress(0, 0)
+    context.set_status_message("Configure...")
+    context.set_status_progress(0, 0)
 
     station = context.station
     timeout = 10.0
@@ -160,21 +160,21 @@ def run_configure(context: Context, message: ConfigureMessage) -> None:
         with lease.acquire(timeout=timeout) as actor:
             configure_callbacks[instrument](actor, parameter)
 
-    context.set_message("Configure done.")
+    context.set_status_message("Configure done.")
 
 
 def run_move_relative(context: Context, message: MoveRelativeMessage) -> None:
-    context.set_message("Move relative...")
-    context.set_progress(0, 0)
+    context.set_status_message("Move relative...")
+    context.set_status_progress(0, 0)
     Session(context).move_relative(message.offset)
-    context.set_message("Move relative done.")
+    context.set_status_message("Move relative done.")
 
 
 def run_move_absolute(context: Context, message: MoveAbsoluteMessage) -> None:
-    context.set_message("Move absolute...")
-    context.set_progress(0, 0)
+    context.set_status_message("Move absolute...")
+    context.set_status_progress(0, 0)
     Session(context).move_absolute(message.position)
-    context.set_message("Move absolute done.")
+    context.set_status_message("Move absolute done.")
 
 
 def safely_poll(
@@ -231,7 +231,7 @@ class MetricsWorker:
             with station.stage.acquire(timeout=0) as stage:
                 if stage.is_connected:
                     position = stage.get_position()
-                    context.set_parameter(PositionChanged(position))
+                    context.publish_message(PositionChanged(position))
         except LeaseTimeoutError:
             ...
         except Exception:
@@ -245,9 +245,18 @@ class MetricsWorker:
             with station.laser.acquire(timeout=0) as laser:
                 if laser.is_connected:
                     metrics = LaserMetrics(
-                        output=safely_poll("output", laser.get_output),
-                        frequency=safely_poll("frequency", laser.get_frequency),
-                        tune=safely_poll("tune", laser.get_tune),
+                        output=safely_poll(
+                            "output",
+                            laser.get_output,
+                        ),
+                        frequency=safely_poll(
+                            "frequency",
+                            laser.get_frequency,
+                        ),
+                        tune=safely_poll(
+                            "tune",
+                            laser.get_tune,
+                        ),
                         head_temperature=safely_poll(
                             "head_temperature",
                             laser.get_head_temperature,
@@ -262,7 +271,7 @@ class MetricsWorker:
         except Exception:
             logger.exception("failed to poll [laser]")
 
-        self.context.set_parameter(metrics)
+        self.context.publish_message(metrics)
 
     def poll_power_meter(self, index: int) -> None:
         context = self.context
@@ -281,9 +290,9 @@ class MetricsWorker:
             ...
         except Exception:
             logger.exception("failed to poll [%s]", instrument)
-        context.set_parameter(PowerMeterPower(index, laser_power))
-        context.set_parameter(PowerMeterWavelength(index, wavelength))
-        context.set_parameter(PowerMeterAverageCount(index, average_count))
+        context.publish_message(PowerMeterPower(index, laser_power))
+        context.publish_message(PowerMeterWavelength(index, wavelength))
+        context.publish_message(PowerMeterAverageCount(index, average_count))
 
 
 class WaveformWorker:
@@ -340,6 +349,6 @@ class WaveformWorker:
                 try:
                     scope.acquire()
                     waveform = scope.read_waveform(channel)
-                    context.set_waveform(waveform)
+                    context.publish_waveform(waveform)
                 except Exception:
                     ...

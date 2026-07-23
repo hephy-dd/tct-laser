@@ -23,7 +23,7 @@ class GeneralGroupBox(QtWidgets.QGroupBox):
         self._output_path_button = QtWidgets.QToolButton(self)
         self._output_path_button.setText("...")
         self._output_path_button.setStatusTip("Select an output path")
-        self._output_path_button.clicked.connect(self.on_select_output_path)
+        self._output_path_button.clicked.connect(self._on_select_output_path)
 
         layout = QtWidgets.QGridLayout(self)
         layout.addWidget(QtWidgets.QLabel("Sample Name"), 0, 0)
@@ -50,7 +50,7 @@ class GeneralGroupBox(QtWidgets.QGroupBox):
         self._output_path_line_edit.setText(output_path)
 
     @QtCore.Slot()
-    def on_select_output_path(self) -> None:
+    def _on_select_output_path(self) -> None:
         path = QtWidgets.QFileDialog.getExistingDirectory(
             self,
             "Select Output Directory",

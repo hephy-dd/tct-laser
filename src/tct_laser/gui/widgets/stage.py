@@ -9,6 +9,7 @@ class StageGroupBox(QtWidgets.QGroupBox):
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
+
         self.setTitle("Stage")
 
         self._prec: int = 4

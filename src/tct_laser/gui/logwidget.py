@@ -52,11 +52,11 @@ class LogWidget(QtWidgets.QTextEdit):
         self._interval_ms: int = 100
         self._flush_timer = QtCore.QTimer(self)
         self._flush_timer.setInterval(self._interval_ms)
-        self._flush_timer.timeout.connect(self.flush_buffer)
+        self._flush_timer.timeout.connect(self._on_flush_buffer)
         self._flush_timer.start()
 
         self.record.connect(
-            self.enqueue_record, QtCore.Qt.ConnectionType.QueuedConnection
+            self._on_enqueue_record, QtCore.Qt.ConnectionType.QueuedConnection
         )
         self.set_maximum_records(1024)
 
@@ -109,7 +109,7 @@ class LogWidget(QtWidgets.QTextEdit):
         self._max_queue = max(1, int(size))
 
     @QtCore.Slot(logging.LogRecord)
-    def enqueue_record(self, record: logging.LogRecord) -> None:
+    def _on_enqueue_record(self, record: logging.LogRecord) -> None:
         """Receive a record (via signal) and buffer it to avoid UI bursts."""
         if len(self._queue) >= self._max_queue:
             # drop oldest to prevent unbounded growth
@@ -117,7 +117,7 @@ class LogWidget(QtWidgets.QTextEdit):
         self._queue.append(record)
 
     @QtCore.Slot()
-    def flush_buffer(self) -> None:
+    def _on_flush_buffer(self) -> None:
         """Drain buffered records and append to the view in one pass."""
         if not self._queue:
             return

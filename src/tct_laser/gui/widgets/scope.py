@@ -89,7 +89,7 @@ class ScopeGroupBox(QtWidgets.QGroupBox):
         self._live_preview_button = QtWidgets.QPushButton(self)
         self._live_preview_button.setText("&Live Preview")
         self._live_preview_button.setCheckable(True)
-        self._live_preview_button.toggled.connect(self.preview_toggled)
+        self._live_preview_button.toggled.connect(self._on_live_preview_toggled)
 
         self._plot_widget = ScopePlotWidget(self)
 
@@ -119,7 +119,7 @@ class ScopeGroupBox(QtWidgets.QGroupBox):
         for channel in channels_:
             widget = QtWidgets.QCheckBox(self)
             widget.setText(channel)
-            widget.stateChanged.connect(self._channel_changed)
+            widget.stateChanged.connect(self._on_channel_changed)
             self._channel_layout.addWidget(widget)
             self._channel_check_boxes[channel] = widget
         self._plot_widget.set_channels(channels_)
@@ -150,6 +150,10 @@ class ScopeGroupBox(QtWidgets.QGroupBox):
             self._plot_widget.set_waveform(waveform)
 
     @QtCore.Slot(int)
-    def _channel_changed(self) -> None:
+    def _on_channel_changed(self) -> None:
         channels = self.active_channels()
         self.channels_changed.emit(channels)
+
+    @QtCore.Slot(bool)
+    def _on_live_preview_toggled(self, state: bool) -> None:
+        self.preview_toggled.emit(state)

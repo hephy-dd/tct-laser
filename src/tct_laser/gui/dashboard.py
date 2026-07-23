@@ -13,6 +13,7 @@ from ..core.messages import (
     SetPowerMeterWavelength,
 )
 from ..core.utils import Vector3
+from .operation import OperationWidget
 from .widgets.general import GeneralGroupBox
 from .widgets.labels import ErrorLabel
 from .widgets.laser import LaserGroupBox
@@ -38,8 +39,8 @@ class DashboardWidget(QtWidgets.QWidget):
         self._configure_cache: list[tuple[str, Any]] = []
         self._move_relative_cache: Vector3 | None = None
 
-        self.error_label = ErrorLabel(self)
-        self.error_label.hide()
+        self._error_label = ErrorLabel(self)
+        self._error_label.hide()
 
         # Laser
 
@@ -116,8 +117,8 @@ class DashboardWidget(QtWidgets.QWidget):
 
         # Operations
 
-        self.operations_tab_widget = QtWidgets.QTabWidget(self)
-        self.operation_widgets: list = []
+        self._operations_tab_widget = QtWidgets.QTabWidget(self)
+        self._operation_widgets: list[OperationWidget] = []
 
         # Misc
 
@@ -140,7 +141,7 @@ class DashboardWidget(QtWidgets.QWidget):
 
         bottom_layout = QtWidgets.QHBoxLayout()
         bottom_layout.addLayout(left_layout)
-        bottom_layout.addWidget(self.operations_tab_widget)
+        bottom_layout.addWidget(self._operations_tab_widget)
         bottom_layout.setStretch(0, 1)
         bottom_layout.setStretch(1, 2)
 
@@ -154,8 +155,14 @@ class DashboardWidget(QtWidgets.QWidget):
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.error_label)
+        layout.addWidget(self._error_label)
         layout.addLayout(inner_layout)
+
+    def show_error(self, text: str) -> None:
+        self._error_label.show_error(text)
+
+    def clear_error(self) -> None:
+        self._error_label.hide()
 
     def set_inputs_enabled(self, enabled: bool) -> None:
         self.scope_group_box.set_inputs_enabled(enabled)
@@ -164,21 +171,20 @@ class DashboardWidget(QtWidgets.QWidget):
         self.power_meter_group_box[1].set_inputs_enabled(enabled)
         self.power_meter_group_box[2].set_inputs_enabled(enabled)
         self.power_meter_group_box[3].set_inputs_enabled(enabled)
-        for operation_widget in self.operation_widgets:
-            operation_widget.run_action.setEnabled(enabled)
+        for operation_widget in self._operation_widgets:
             operation_widget.set_inputs_enabled(enabled)
         self.station_group_box.set_inputs_enabled(enabled)
         self.general_group_box.set_inputs_enabled(enabled)
 
     def set_abort_enabled(self, enabled: bool) -> None:
-        for operation_widget in self.operation_widgets:
+        for operation_widget in self._operation_widgets:
             operation_widget.set_abort_enabled(enabled)
 
-    def show_operation(self, operation: QtWidgets.QWidget) -> None:
-        for index in range(self.operations_tab_widget.count()):
-            widget = self.operations_tab_widget.widget(index)
+    def show_operation(self, operation: OperationWidget) -> None:
+        for index in range(self._operations_tab_widget.count()):
+            widget = self._operations_tab_widget.widget(index)
             if widget is operation:
-                self.operations_tab_widget.setCurrentIndex(index)
+                self._operations_tab_widget.setCurrentIndex(index)
                 break
 
     def flush_configure_cache(self) -> list[Any]:
@@ -213,8 +219,21 @@ class DashboardWidget(QtWidgets.QWidget):
             case "power_meter_3":
                 self.power_meter_group_box[3].setEnabled(enabled)
 
+    def add_operation(self, operation: OperationWidget) -> None:
+        self._operations_tab_widget.addTab(operation, operation.windowTitle())
+        self._operation_widgets.append(operation)
+
+    def operation_widgets(self) -> list[OperationWidget]:
+        return list(self._operation_widgets)
+
     def set_scope_channels(self, channels: Iterable[str]):
         self.scope_group_box.set_channels(channels)
+
+    def set_active_scope_channels(self, channels: Iterable[str]) -> None:
+        self.scope_group_box.set_active_channels(channels)
+
+    def active_scope_channels(self) -> list[str]:
+        return self.scope_group_box.active_channels()
 
     def set_laser_output(self, value: bool) -> None:
         self.laser_group_box.set_output(value)
