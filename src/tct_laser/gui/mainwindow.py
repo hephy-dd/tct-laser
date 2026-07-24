@@ -427,6 +427,7 @@ class MainWindow(QtWidgets.QMainWindow):
         current_operation = self._current_operation
         if current_operation is not None:
             self._dashboard_widget.show_operation(current_operation)
+            current_operation.clear()
             operation = current_operation.config()
             self._context.tell(operation)
         self._current_operation = None
