@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "tct-laser"
-version = "0.1.0"
+version = "0.1.1"
 description = "TCT-Laser control and measurements"
 readme = "README.md"
 authors = [
