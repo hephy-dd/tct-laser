@@ -72,8 +72,10 @@ def run_initialize(context: Context, config: RasterScanOperation) -> None:
             raise RuntimeError("Laser not enabled, operation aborted.")
 
     with station.scope.acquire(timeout=context.timeout) as scope:
-        scope.set_average_count(config.average_count)
+        logger.info("configure scope:")
+        scope.configure()
         logger.info("set scope average count: %d", config.average_count)
+        scope.set_average_count(config.average_count)
 
 
 def run_raster_scan(context: Context, config: RasterScanOperation) -> None:

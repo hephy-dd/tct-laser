@@ -96,6 +96,8 @@ def run_initialize(context: Context, config: ZScanOperation) -> None:
             raise RuntimeError("Laser not enabled, operation aborted.")
 
     with station.scope.acquire(timeout=context.timeout) as scope:
+        logger.info("configure scope:")
+        scope.configure()
         scope.set_average_count(config.average_count)
         logger.info("Set scope average count to %d", config.average_count)
 
