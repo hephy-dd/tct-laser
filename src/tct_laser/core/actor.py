@@ -2,9 +2,7 @@ from concurrent.futures import Future
 from dataclasses import dataclass
 from queue import Empty, Queue
 from threading import Event, Thread
-from typing import Any, TypeVar
-
-T = TypeVar("T")
+from typing import Any, Self
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,7 +18,7 @@ class ThreadingActor:
         self._thread = Thread(target=self._run, daemon=True)
 
     @classmethod
-    def start(cls: type[T], *args: Any, **kwargs: Any) -> T:
+    def start(cls, *args: Any, **kwargs: Any) -> Self:
         actor = cls(*args, **kwargs)
         actor._thread.start()  # type: ignore
         return actor

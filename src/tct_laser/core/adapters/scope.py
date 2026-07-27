@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, ClassVar
 
 import numpy as np
 from comet.driver.rohde_schwarz.rto6 import RTO6
@@ -11,7 +11,7 @@ __all__ = ["RTO6Adapter", "RTP164Adapter"]
 
 
 class RTBaseAdapter:
-    CHANNELS = {
+    CHANNELS: ClassVar = {
         "CHAN1": "CHAN1",
         "CHAN2": "CHAN2",
         "CHAN3": "CHAN3",

@@ -9,10 +9,10 @@ from .stage import CorvusControllerAdapter, CorvusTTAdapter, TableControlAdapter
 
 __all__ = [
     "AdapterFactory",
-    "scope_adapter_factory",
     "laser_adapter_factory",
-    "stage_adapter_factory",
     "power_meter_adapter_factory",
+    "scope_adapter_factory",
+    "stage_adapter_factory",
 ]
 
 scope_adapter_registry: dict[str, type[ScopeAdapter]] = {
@@ -38,7 +38,6 @@ power_meter_adapter_registry: dict[str, type[PowerMeterAdapter]] = {
 }
 
 
-T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
 
 
@@ -46,7 +45,7 @@ class AdapterFactory(Protocol[T_co]):
     def __call__(self, urn: str) -> type[T_co]: ...
 
 
-def _adapter_from_registry(
+def _adapter_from_registry[T](
     urn: str,
     registry: Mapping[str, type[T]],
     kind: str,

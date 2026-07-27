@@ -6,6 +6,8 @@ from ..core.resource import is_serial_resource, list_resources
 
 __all__ = ["SettingsDialog"]
 
+logger = logging.getLogger(__name__)
+
 
 class SettingsDialog(QtWidgets.QDialog):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
@@ -211,8 +213,7 @@ class InstrumentWidget(QtWidgets.QWidget):
 
     def set_model(self, urn: str) -> None:
         index = self._model_combo_box.findData(urn)
-        if index < 0:
-            index = 0
+        index = max(index, 0)
         self._model_combo_box.setCurrentIndex(index)
 
     def resource_name(self) -> str:
@@ -226,8 +227,7 @@ class InstrumentWidget(QtWidgets.QWidget):
 
     def set_baud_rate(self, baud_rate: int) -> None:
         index = self._baud_rate_combo_box.findData(baud_rate)
-        if index < 0:
-            index = 0
+        index = max(index, 0)
         self._baud_rate_combo_box.setCurrentIndex(index)
 
     def termination(self) -> str:
@@ -235,8 +235,7 @@ class InstrumentWidget(QtWidgets.QWidget):
 
     def set_termination(self, termination: str) -> None:
         index = self._termination_combo_box.findData(termination)
-        if index < 0:
-            index = 0
+        index = max(index, 0)
         self._termination_combo_box.setCurrentIndex(index)
 
     def timeout(self) -> float:
@@ -262,7 +261,7 @@ class InstrumentWidget(QtWidgets.QWidget):
             for resource_name in list_resources():
                 dialog.add_resource_name(resource_name)
         except Exception:
-            logging.exception("Failed to load resources")
+            logger.exception("Failed to load resources")
 
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             self.set_resource_name(dialog.current_resource_name())

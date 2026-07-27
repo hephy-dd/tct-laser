@@ -6,8 +6,8 @@ __all__ = [
     "load_icon",
     "load_text",
     "update_check_box",
-    "update_spin_box",
     "update_double_spin_box",
+    "update_spin_box",
 ]
 
 
@@ -21,9 +21,11 @@ def load_icon(filename: str) -> QtGui.QIcon:
 
 
 def load_text(filename: str) -> str:
-    with resources.path("tct_laser.assets", filename) as path:
-        with open(path, "r") as fp:
-            return fp.read()
+    return (
+        resources.files("tct_laser.assets")
+        .joinpath(filename)
+        .read_text(encoding="utf-8")
+    )
 
 
 def update_check_box(check_box: QtWidgets.QCheckBox, value: bool) -> None:

@@ -2,7 +2,6 @@ import logging
 import math
 import sys
 from datetime import timedelta
-from typing import TypeAlias
 
 import msgspec
 import numpy as np
@@ -24,7 +23,7 @@ __all__ = [
 
 logger = logging.getLogger(__name__)
 
-FloatArray: TypeAlias = NDArray[np.float64]
+type FloatArray = NDArray[np.float64]
 
 UM_TO_MM = 1e-3
 POSITION_TOLERANCE_MM = 1e-9
@@ -96,10 +95,10 @@ def run_initialize(context: Context, config: ZScanOperation) -> None:
             raise RuntimeError("Laser not enabled, operation aborted.")
 
     with station.scope.acquire(timeout=context.timeout) as scope:
-        logger.info("configure scope:")
+        logger.info("configure scope")
         scope.configure()
+        logger.info("set scope average count: %d", config.average_count)
         scope.set_average_count(config.average_count)
-        logger.info("Set scope average count to %d", config.average_count)
 
 
 def validate_config(config: ZScanOperation) -> None:

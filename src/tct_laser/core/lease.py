@@ -1,15 +1,12 @@
 from collections.abc import Generator
 from contextlib import contextmanager
 from threading import Lock
-from typing import Generic, TypeVar
-
-T = TypeVar("T")
 
 
 class LeaseTimeoutError(TimeoutError): ...
 
 
-class Lease(Generic[T]):
+class Lease[T]:
     def __init__(self, resource: T) -> None:
         self._resource = resource
         self._lock = Lock()

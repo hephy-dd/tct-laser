@@ -41,7 +41,7 @@ def si_format(value: float, unit: str) -> str:
 
 def safe_iso_timestamp(dt: datetime | None = None) -> str:
     if dt is None:
-        dt = datetime.now()
+        dt = datetime.now().astimezone()
     return dt.strftime("%Y-%m-%dT%H-%M-%S")
 
 

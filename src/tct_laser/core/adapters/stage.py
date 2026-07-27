@@ -6,7 +6,11 @@ from comet.driver.mbi.tablecontrol import TableControl
 
 from ..utils import Vector3
 
-__all__ = ["CorvusTTAdapter", "CorvusControllerAdapter", "TableControlAdapter"]
+__all__ = [
+    "CorvusControllerAdapter",
+    "CorvusTTAdapter",
+    "TableControlAdapter",
+]
 
 
 class CorvusTTAdapter:

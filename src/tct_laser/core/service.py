@@ -1,7 +1,7 @@
 import logging
 from threading import Thread
 from types import TracebackType
-from typing import Protocol
+from typing import Protocol, Self
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class ServiceGroup:
     def __init__(self, services: list[BackgroundService]) -> None:
         self.services = services
 
-    def __enter__(self) -> "ServiceGroup":
+    def __enter__(self) -> Self:
         for service in self.services:
             service.start()
         return self
