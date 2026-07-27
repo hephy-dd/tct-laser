@@ -287,36 +287,52 @@ class RasterScanWidget(OperationWidget):
         self.plot_widget = RasterScanPlotWidget(self)
         self.plot_widget.set_color_map("viridis")
 
-        top_1_layout = QtWidgets.QFormLayout()
-        top_1_layout.addRow("X- Offset", self.left_spin_box)
-        top_1_layout.addRow("X+ Offset", self.right_spin_box)
-        top_1_layout.addRow("X Points", self.n_points_x_spin_box)
-        top_1_layout.addRow("X Step Size", self.step_x_spin_box)
+        self.x_axis_group_box = QtWidgets.QGroupBox(self)
+        self.x_axis_group_box.setTitle("X-Axis")
 
-        top_2_layout = QtWidgets.QFormLayout()
-        top_2_layout.addRow("Y- Offset", self.top_spin_box)
-        top_2_layout.addRow("Y+ Offset", self.bottom_spin_box)
-        top_2_layout.addRow("Y Points", self.n_points_y_spin_box)
-        top_2_layout.addRow("Y Step Size", self.step_y_spin_box)
+        top_1_layout = QtWidgets.QFormLayout(self.x_axis_group_box)
+        top_1_layout.addRow("Start Offset", self.left_spin_box)
+        top_1_layout.addRow("Stop Offset", self.right_spin_box)
+        top_1_layout.addRow("Points", self.n_points_x_spin_box)
+        top_1_layout.addRow("Step Size", self.step_x_spin_box)
 
-        top_3_layout = QtWidgets.QFormLayout()
-        top_3_layout.addRow("Source Ch.", self.source_channel_combo_box)
-        top_3_layout.addRow("Avg. Count", self.average_count_spin_box)
-        top_3_layout.addRow("Scan Mode", self.mode_combo_box)
+        self.y_axis_group_box = QtWidgets.QGroupBox(self)
+        self.y_axis_group_box.setTitle("Y-Axis")
 
-        top_4_layout = QtWidgets.QFormLayout()
-        top_4_layout.addWidget(self.start_button)
-        top_4_layout.addWidget(self.abort_button)
+        top_2_layout = QtWidgets.QFormLayout(self.y_axis_group_box)
+        top_2_layout.addRow("Start Offset", self.top_spin_box)
+        top_2_layout.addRow("Stop Offset", self.bottom_spin_box)
+        top_2_layout.addRow("Points", self.n_points_y_spin_box)
+        top_2_layout.addRow("Step Size", self.step_y_spin_box)
+
+        self.scan_option_group_box = QtWidgets.QGroupBox(self)
+        self.scan_option_group_box.setTitle("Scan Options")
+
+        top_3_layout = QtWidgets.QFormLayout(self.scan_option_group_box)
+        top_3_layout.addRow("Mode", self.mode_combo_box)
+
+        self.scope_group_box = QtWidgets.QGroupBox(self)
+        self.scope_group_box.setTitle("Scope")
+
+        top_4_layout = QtWidgets.QFormLayout(self.scope_group_box)
+        top_4_layout.addRow("Source Ch.", self.source_channel_combo_box)
+        top_4_layout.addRow("Avg. Count", self.average_count_spin_box)
+
+        top_5_layout = QtWidgets.QFormLayout()
+        top_5_layout.addWidget(self.start_button)
+        top_5_layout.addWidget(self.abort_button)
 
         top_layout = QtWidgets.QHBoxLayout()
-        top_layout.addLayout(top_1_layout)
-        top_layout.addLayout(top_2_layout)
-        top_layout.addLayout(top_3_layout)
-        top_layout.addLayout(top_4_layout)
-        top_layout.setStretch(0, 1)
-        top_layout.setStretch(1, 1)
+        top_layout.addWidget(self.x_axis_group_box)
+        top_layout.addWidget(self.y_axis_group_box)
+        top_layout.addWidget(self.scan_option_group_box)
+        top_layout.addWidget(self.scope_group_box)
+        top_layout.addLayout(top_5_layout)
+        top_layout.setStretch(0, 2)
+        top_layout.setStretch(1, 2)
         top_layout.setStretch(2, 2)
-        top_layout.setStretch(3, 1)
+        top_layout.setStretch(3, 2)
+        top_layout.setStretch(4, 2)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.addLayout(top_layout)
@@ -416,7 +432,7 @@ class RasterScanWidget(OperationWidget):
                 self.set_source_channels(channels)
 
     def create_raster(self, raster_type: RasterType, width: int, height: int) -> None:
-        self._raster_cache[raster_type] = create_raster(width, height)
+        self._raster_cache[raster_type] = create_raster(height, width)
 
     def update_raster_value(
         self, raster_type: RasterType, x: int, y: int, value: float
@@ -433,9 +449,9 @@ class RasterScanWidget(OperationWidget):
             offset_bottom=abs(self.bottom_spin_box.value()),
             n_points_x=self.n_points_x_spin_box.value(),
             n_points_y=self.n_points_y_spin_box.value(),
+            mode=self.mode(),
             source_channel=self.source_channel(),
             average_count=self.average_count_spin_box.value(),
-            mode=self.mode(),
         )
 
     def set_config(self, config: RasterScanOperation) -> None:
@@ -445,9 +461,9 @@ class RasterScanWidget(OperationWidget):
         self.bottom_spin_box.setValue(config.offset_bottom)
         self.n_points_x_spin_box.setValue(config.n_points_x)
         self.n_points_y_spin_box.setValue(config.n_points_y)
+        self.set_mode(config.mode)
         self.set_source_channel(config.source_channel)
         self.average_count_spin_box.setValue(config.average_count)
-        self.set_mode(config.mode)
 
     def read_settings(self, settings: QtCore.QSettings) -> None:
         settings.beginGroup("RasterScan")
