@@ -1,13 +1,10 @@
 import logging
 import time
+from collections.abc import Callable
 from threading import Event
-from typing import Protocol, TypeVar, runtime_checkable
+from typing import Protocol, runtime_checkable
 
-from pyqtgraph.graphicsItems.ImageItem import Callable
-
-from tct_laser.core.actors.scope import ScopeActor
-
-from .actors import LaserActor, PowerMeterActor
+from .actors import LaserActor, PowerMeterActor, ScopeActor
 from .context import WorkerContext as Context
 from .lease import LeaseTimeoutError
 from .messages import (
@@ -29,8 +26,6 @@ from .messages import (
 )
 from .service import BackgroundService, ServiceGroup
 from .session import Session
-
-T = TypeVar("T")
 
 logger = logging.getLogger(__name__)
 
@@ -177,7 +172,7 @@ def run_move_absolute(context: Context, message: MoveAbsoluteMessage) -> None:
     context.set_status_message("Move absolute done.")
 
 
-def safely_poll(
+def safely_poll[T](
     name: str,
     getter: Callable[[], T],
 ) -> T | None:

@@ -1,8 +1,9 @@
 import json
 import logging
 import webbrowser
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import msgspec
 from PySide6 import QtCore, QtGui, QtStateMachine, QtWidgets
@@ -21,6 +22,8 @@ from .operation import OperationWidget
 from .settingsdialog import SettingsDialog
 
 __all__ = ["MainWindow"]
+
+logger = logging.getLogger(__name__)
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -396,7 +399,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def _on_enter_idle(self) -> None:
-        logging.info("entered [idle]")
+        logger.info("entered [idle]")
         self.set_inputs_enabled(True)
         self.set_abort_enabled(False)
         self.clear_message()
@@ -404,7 +407,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def _on_enter_configure(self) -> None:
-        logging.info("entered [configure]")
+        logger.info("entered [configure]")
         self.set_inputs_enabled(False)
         self.set_abort_enabled(False)
         data = self._dashboard_widget.flush_configure_cache()
@@ -412,7 +415,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def _on_enter_move_relative(self) -> None:
-        logging.info("entered [move relative]")
+        logger.info("entered [move relative]")
         self.set_inputs_enabled(False)
         self.set_abort_enabled(False)
         pos = self._dashboard_widget.flush_move_relative_cache()
@@ -420,7 +423,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def _on_enter_operation(self) -> None:
-        logging.info("entered [operation]")
+        logger.info("entered [operation]")
         self.clear_exception()
         self.set_inputs_enabled(False)
         self.set_abort_enabled(True)
@@ -434,7 +437,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot()
     def _on_enter_abort(self) -> None:
-        logging.info("entered [abort]")
+        logger.info("entered [abort]")
         self.set_abort_enabled(False)
         self._context.abort()
 

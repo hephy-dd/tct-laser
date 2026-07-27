@@ -72,7 +72,7 @@ def run_initialize(context: Context, config: RasterScanOperation) -> None:
             raise RuntimeError("Laser not enabled, operation aborted.")
 
     with station.scope.acquire(timeout=context.timeout) as scope:
-        logger.info("configure scope:")
+        logger.info("configure scope")
         scope.configure()
         logger.info("set scope average count: %d", config.average_count)
         scope.set_average_count(config.average_count)
@@ -301,18 +301,18 @@ def run_raster_scan(context: Context, config: RasterScanOperation) -> None:
     try:
         plot_writer.save_amplitude_map(z_index=0)
     except Exception:
-        logging.exception("failed to write amplitude plot")
+        logger.exception("failed to write amplitude plot")
 
     logger.info("writing XZ profile plot...")
     try:
         plot_writer.save_xz_profile()
     except Exception:
-        logging.exception("failed to write XZ profile plot")
+        logger.exception("failed to write XZ profile plot")
 
     logger.info("writing YZ profile plot...")
     try:
         plot_writer.save_yz_profile()
     except Exception:
-        logging.exception("failed to write YZ profile plot")
+        logger.exception("failed to write YZ profile plot")
 
     context.set_status_message("Raster Scan done.")

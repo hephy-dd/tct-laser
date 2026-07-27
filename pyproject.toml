@@ -47,3 +47,6 @@ Documentation = "https://github.com/hephy-dd/tct-laser"
 
 [project.scripts]
 tct-laser = "tct_laser.__main__:main"
+
+[tool.ruff.lint]
+extend-ignore = ["BLE001"]

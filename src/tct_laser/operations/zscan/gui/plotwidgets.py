@@ -5,7 +5,10 @@ import pyqtgraph as pg
 from numpy.typing import ArrayLike
 from PySide6 import QtGui, QtWidgets
 
-__all__ = ["ZScanPlotWidget", "ZScanHPlotWidget"]
+__all__ = [
+    "ZScanHPlotWidget",
+    "ZScanPlotWidget",
+]
 
 
 class ZScanPlotWidget(QtWidgets.QWidget):

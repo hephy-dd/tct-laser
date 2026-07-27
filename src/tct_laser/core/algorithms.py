@@ -1,9 +1,7 @@
-from typing import TypeAlias
-
 import numpy as np
 from numpy.typing import NDArray
 
-CoordArray: TypeAlias = NDArray[np.int_]
+type CoordArray = NDArray[np.int_]
 
 
 def xy_range_linear(x_steps: int, y_steps: int) -> CoordArray:

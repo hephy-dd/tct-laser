@@ -2,7 +2,12 @@ from typing import Protocol, runtime_checkable
 
 from .utils import Vector3, Waveform
 
-__all__ = ["ScopeAdapter", "LaserAdapter", "StageAdapter", "PowerMeterAdapter"]
+__all__ = [
+    "LaserAdapter",
+    "PowerMeterAdapter",
+    "ScopeAdapter",
+    "StageAdapter",
+]
 
 
 @runtime_checkable

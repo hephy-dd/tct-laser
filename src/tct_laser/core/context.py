@@ -1,8 +1,9 @@
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Event, RLock
-from typing import Any, Iterable
+from typing import Any
 
 from pathvalidate import sanitize_filepath
 

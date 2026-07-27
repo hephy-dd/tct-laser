@@ -1,12 +1,11 @@
 import math
-from typing import TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
 
 from tct_laser.core.utils import Vector3
 
-FloatArray: TypeAlias = NDArray[np.float64]
+type FloatArray = NDArray[np.float64]
 
 __all__ = ["focus_slope", "path_distance"]
 
