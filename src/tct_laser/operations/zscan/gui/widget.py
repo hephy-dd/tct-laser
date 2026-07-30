@@ -1,9 +1,11 @@
 import math
+from collections.abc import Iterable
 from typing import Any, cast
 
 import msgspec
 from PySide6 import QtCore, QtWidgets
 
+from tct_laser.core.messages import EnabledChannelsChanged
 from tct_laser.gui.operation import OperationWidget
 
 from ..core.zscan import AutoFocusZ, ZScanOperation, ZScanSeries, ZScanXYSeries
@@ -54,6 +56,8 @@ class ZScanWidget(OperationWidget):
         self.xy_steps_spin_box.setRange(1, 1_000_000)
         self.xy_steps_spin_box.setValue(100)
 
+        self.source_channel_combo_box = QtWidgets.QComboBox(self)
+
         self.average_count_spin_box = QtWidgets.QSpinBox(self)
         self.average_count_spin_box.setRange(1, 1_000)
         self.average_count_spin_box.setValue(1)
@@ -71,33 +75,52 @@ class ZScanWidget(OperationWidget):
 
         self.z_scan_h_plot = ZScanHPlotWidget(self)
 
-        top_1_layout = QtWidgets.QFormLayout()
-        top_1_layout.addRow("Z Start", self.z_start_offset_spin_box)
-        top_1_layout.addRow("Z Stop", self.z_stop_offset_spin_box)
+        self.z_plane_group_box = QtWidgets.QGroupBox(self)
+        self.z_plane_group_box.setTitle("Z Plane")
+
+        top_1_layout = QtWidgets.QFormLayout(self.z_plane_group_box)
+        top_1_layout.addRow("Start Offset", self.z_start_offset_spin_box)
+        top_1_layout.addRow("Stop Offset", self.z_stop_offset_spin_box)
         top_1_layout.addRow("Z Steps", self.z_steps_spin_box)
+        top_1_layout.addRow("XY Steps", self.xy_steps_spin_box)
 
-        top_2_layout = QtWidgets.QFormLayout()
-        top_2_layout.addRow("Start Offset X", self.start_x_offset_spin_box)
-        top_2_layout.addRow("Start Offset Y", self.start_y_offset_spin_box)
+        self.start_group_box = QtWidgets.QGroupBox(self)
+        self.start_group_box.setTitle("Start Position")
 
-        top_3_layout = QtWidgets.QFormLayout()
-        top_3_layout.addRow("Stop Offset X", self.stop_x_offset_spin_box)
-        top_3_layout.addRow("Stop Offset Y", self.stop_y_offset_spin_box)
+        top_2_layout = QtWidgets.QFormLayout(self.start_group_box)
+        top_2_layout.addRow("Offset X", self.start_x_offset_spin_box)
+        top_2_layout.addRow("Offset Y", self.start_y_offset_spin_box)
 
-        top_4_layout = QtWidgets.QFormLayout()
-        top_4_layout.addRow("XY Steps", self.xy_steps_spin_box)
+        self.stop_group_box = QtWidgets.QGroupBox(self)
+        self.stop_group_box.setTitle("Stop Position")
+
+        top_3_layout = QtWidgets.QFormLayout(self.stop_group_box)
+        top_3_layout.addRow("Offset X", self.stop_x_offset_spin_box)
+        top_3_layout.addRow("Offset Y", self.stop_y_offset_spin_box)
+
+        self.scope_group_box = QtWidgets.QGroupBox(self)
+        self.scope_group_box.setTitle("Scope")
+
+        top_4_layout = QtWidgets.QFormLayout(self.scope_group_box)
+        top_4_layout.addRow("Source Ch.", self.source_channel_combo_box)
         top_4_layout.addRow("Avg. Count", self.average_count_spin_box)
-        top_4_layout.addRow("Autofocus:", self.autofocus_line_edit)
 
-        top_5_layout = QtWidgets.QFormLayout()
+        self.results_group_box = QtWidgets.QGroupBox(self)
+        self.results_group_box.setTitle("Results")
+
+        results_layout = QtWidgets.QFormLayout(self.results_group_box)
+        results_layout.addRow("Autofocus", self.autofocus_line_edit)
+
+        top_5_layout = QtWidgets.QVBoxLayout()
         top_5_layout.addWidget(self.start_button)
         top_5_layout.addWidget(self.abort_button)
+        top_5_layout.addWidget(self.results_group_box)
 
         top_layout = QtWidgets.QHBoxLayout()
-        top_layout.addLayout(top_1_layout)
-        top_layout.addLayout(top_2_layout)
-        top_layout.addLayout(top_3_layout)
-        top_layout.addLayout(top_4_layout)
+        top_layout.addWidget(self.z_plane_group_box)
+        top_layout.addWidget(self.start_group_box)
+        top_layout.addWidget(self.stop_group_box)
+        top_layout.addWidget(self.scope_group_box)
         top_layout.addLayout(top_5_layout)
         top_layout.setStretch(0, 2)
         top_layout.setStretch(1, 2)
@@ -119,11 +142,38 @@ class ZScanWidget(OperationWidget):
         self.stop_x_offset_spin_box.setEnabled(enabled)
         self.stop_y_offset_spin_box.setEnabled(enabled)
         self.xy_steps_spin_box.setEnabled(enabled)
+        self.source_channel_combo_box.setEnabled(enabled)
         self.average_count_spin_box.setEnabled(enabled)
         self.start_button.setEnabled(enabled)
 
     def set_abort_enabled(self, enabled: bool) -> None:
         self.abort_button.setEnabled(enabled)
+
+    def source_channel(self) -> str:
+        index = self.source_channel_combo_box.currentIndex()
+        return self.source_channel_combo_box.itemData(index) or ""
+
+    def set_source_channel(self, channel: str) -> None:
+        index = self.source_channel_combo_box.findData(channel)
+        self.source_channel_combo_box.setCurrentIndex(index)
+
+    def set_source_channels(self, channels: Iterable[str]) -> None:
+        channels = list(channels)
+        current_channel = self.source_channel_combo_box.currentData()
+
+        with QtCore.QSignalBlocker(self.source_channel_combo_box):
+            self.source_channel_combo_box.clear()
+            for channel in channels:
+                self.source_channel_combo_box.addItem(f"{channel}", channel)
+
+            index = self.source_channel_combo_box.findData(current_channel)
+
+            if index >= 0:
+                self.source_channel_combo_box.setCurrentIndex(index)
+            elif self.source_channel_combo_box.count() > 0:
+                self.source_channel_combo_box.setCurrentIndex(0)
+            else:
+                self.source_channel_combo_box.setCurrentIndex(-1)
 
     def set_autofocus_z_um(self, autofocus: float) -> None:
         if math.isfinite(autofocus):
@@ -152,6 +202,8 @@ class ZScanWidget(OperationWidget):
                 self.set_z_scan_xy_series(series)
             case ZScanSeries() as series:
                 self.set_z_scan_series(series)
+            case EnabledChannelsChanged(channels):
+                self.set_source_channels(channels)
 
     def clear(self) -> None:
         self.z_scan_plot.clear()
@@ -167,6 +219,7 @@ class ZScanWidget(OperationWidget):
             stop_x_offset_um=self.stop_x_offset_spin_box.value(),
             stop_y_offset_um=self.stop_y_offset_spin_box.value(),
             xy_steps=self.xy_steps_spin_box.value(),
+            source_channel=self.source_channel(),
             average_count=self.average_count_spin_box.value(),
         )
 
@@ -179,6 +232,7 @@ class ZScanWidget(OperationWidget):
         self.stop_x_offset_spin_box.setValue(config.stop_x_offset_um)
         self.stop_y_offset_spin_box.setValue(config.stop_y_offset_um)
         self.xy_steps_spin_box.setValue(config.xy_steps)
+        self.set_source_channel(config.source_channel)
         self.average_count_spin_box.setValue(config.average_count)
 
     def read_settings(self, settings: QtCore.QSettings) -> None:

@@ -52,7 +52,8 @@ class ZScanOperation(msgspec.Struct, frozen=True):
     stop_y_offset_um: int
     xy_steps: int
 
-    average_count: int = 1
+    source_channel: str
+    average_count: int
 
     def run(self, context: Context) -> None:
         run_initialize(context, self)
@@ -123,11 +124,9 @@ def validate_config(config: ZScanOperation) -> None:
 def run_z_scan(context: Context, config: ZScanOperation) -> None:
     session = Session(context)
 
-    channels = context.waveform_channels()
-    if not channels:
-        raise RuntimeError("No waveform channel configured for Z scan.")
-
-    channel = channels[0]
+    channel = config.source_channel
+    if channel not in context.waveform_channels():
+        raise ValueError(f"No such source channel enabled: {channel}")
 
     initial_position = session.position()
     initial_z_mm = initial_position.z

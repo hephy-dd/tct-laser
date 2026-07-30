@@ -34,9 +34,10 @@ class RasterScanOperation(msgspec.Struct, frozen=True):
     offset_bottom: int
     n_points_x: int
     n_points_y: int
+    mode: str
+
     source_channel: str
     average_count: int
-    mode: str
 
     def run(self, context: Context) -> None:
         run_initialize(context, self)
