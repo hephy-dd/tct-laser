@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from turtle import pos
 from typing import Any
 
 from PySide6 import QtCore, QtWidgets
@@ -19,7 +20,7 @@ from .widgets.labels import ErrorLabel
 from .widgets.laser import LaserGroupBox
 from .widgets.powermeter import PowerMeterGroupBox
 from .widgets.scope import ScopeGroupBox
-from .widgets.stage import StageGroupBox
+from .widgets.stage import Position, StageGroupBox
 from .widgets.station import StationGroupBox
 
 __all__ = ["DashboardWidget"]
@@ -30,6 +31,7 @@ class DashboardWidget(QtWidgets.QWidget):
     disconnect_instrument = QtCore.Signal(str)
     configure_triggered = QtCore.Signal()
     move_relative_triggered = QtCore.Signal()
+    move_absolute_triggered = QtCore.Signal()
     sample_name_changed = QtCore.Signal(str)
     output_path_changed = QtCore.Signal(str)
 
@@ -38,6 +40,7 @@ class DashboardWidget(QtWidgets.QWidget):
 
         self._configure_cache: list[tuple[str, Any]] = []
         self._move_relative_cache: Vector3 | None = None
+        self._move_absolute_cache: Vector3 | None = None
 
         self._error_label = ErrorLabel(self)
         self._error_label.hide()
@@ -199,6 +202,11 @@ class DashboardWidget(QtWidgets.QWidget):
             return Vector3(0, 0, 0)
         return move_relative_cache
 
+    def flush_move_absolute_cache(self) -> Vector3 | None:
+        move_absolute_cache = self._move_absolute_cache
+        self._move_absolute_cache = None
+        return move_absolute_cache
+
     def set_instrument_state(self, name: str, state: ConnectionState) -> None:
         self.station_group_box.set_instrument_state(name, state)
 
@@ -234,6 +242,14 @@ class DashboardWidget(QtWidgets.QWidget):
 
     def active_scope_channels(self) -> list[str]:
         return self.scope_group_box.active_channels()
+
+    def set_stage_positions(self, positions: Iterable[Position]) -> None:
+        self.stage_group_box._positions_widget.clear_positions()
+        for position in positions:
+            self.stage_group_box._positions_widget.append_position(position)
+
+    def stage_positions(self) -> list[Position]:
+        return self.stage_group_box._positions_widget.positions()
 
     def set_laser_output(self, value: bool) -> None:
         self.laser_group_box.set_output(value)
@@ -319,7 +335,9 @@ class DashboardWidget(QtWidgets.QWidget):
         self._move_relative_cache = Vector3(x, y, z)
         self.move_relative_triggered.emit()
 
-    def move_absolute(self, x, y, z) -> None: ...
+    def move_absolute(self, x, y, z) -> None:
+        self._move_absolute_cache = Vector3(x, y, z)
+        self.move_absolute_triggered.emit()
 
     def sample_name(self) -> str:
         return self.general_group_box.sample_name()

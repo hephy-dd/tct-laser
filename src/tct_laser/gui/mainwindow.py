@@ -16,7 +16,7 @@ from ..core.utils import Vector3, Waveform
 from ..core.worker import Worker
 from ..operations import operation_registry
 from . import config
-from .dashboard import DashboardWidget
+from .dashboard import DashboardWidget, Position
 from .logwidget import LogWidget
 from .operation import OperationWidget
 from .settingsdialog import SettingsDialog
@@ -183,6 +183,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._move_relative_state = QtStateMachine.QState()
         self._move_relative_state.entered.connect(self._on_enter_move_relative)
 
+        self._move_absolute_state = QtStateMachine.QState()
+        self._move_absolute_state.entered.connect(self._on_enter_move_absolute)
+
         self._operation_state = QtStateMachine.QState()
         self._operation_state.entered.connect(self._on_enter_operation)
 
@@ -195,6 +198,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._idle_state.addTransition(
             self._dashboard_widget.move_relative_triggered, self._move_relative_state
         )
+        self._idle_state.addTransition(
+            self._dashboard_widget.move_absolute_triggered, self._move_absolute_state
+        )
         self._idle_state.addTransition(self.operation_started, self._operation_state)
 
         self._configure_state.addTransition(self.operation_finished, self._idle_state)
@@ -203,6 +209,13 @@ class MainWindow(QtWidgets.QMainWindow):
             self.operation_finished, self._idle_state
         )
         self._move_relative_state.addTransition(
+            self._abort_action.triggered, self._abort_state
+        )
+
+        self._move_absolute_state.addTransition(
+            self.operation_finished, self._idle_state
+        )
+        self._move_absolute_state.addTransition(
             self._abort_action.triggered, self._abort_state
         )
 
@@ -217,6 +230,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._state_machine.addState(self._idle_state)
         self._state_machine.addState(self._configure_state)
         self._state_machine.addState(self._move_relative_state)
+        self._state_machine.addState(self._move_absolute_state)
         self._state_machine.addState(self._operation_state)
         self._state_machine.addState(self._abort_state)
         self._state_machine.setInitialState(self._idle_state)
@@ -245,6 +259,7 @@ class MainWindow(QtWidgets.QMainWindow):
         scope_channels = settings.value("scope_channels")
         sample_name = settings.value("sample_name", "Unnamed", type=str)
         output_path = settings.value("output_path", str(Path.home()), type=str)
+        stage_psoitions = settings.value("stage_positions")
         settings.endGroup()
 
         if isinstance(geometry, QtCore.QByteArray):
@@ -261,6 +276,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self._dashboard_widget.set_sample_name(sample_name)
         if isinstance(output_path, str):
             self._dashboard_widget.set_output_path(output_path)
+        if isinstance(stage_psoitions, str):
+            self.restore_stage_positions(stage_psoitions)
 
         for widget in self._dashboard_widget.operation_widgets():
             widget.read_settings(settings)
@@ -275,6 +292,7 @@ class MainWindow(QtWidgets.QMainWindow):
         settings.setValue("scope_channels", self.save_scope_channels())
         settings.setValue("sample_name", self._dashboard_widget.sample_name())
         settings.setValue("output_path", self._dashboard_widget.output_path())
+        settings.setValue("stage_positions", self.save_stage_positions())
 
         settings.endGroup()
 
@@ -328,10 +346,23 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def restore_scope_channels(self, data: str) -> None:
         try:
-            scope_channels = json.loads(data)
+            scope_channels = list(json.loads(data))
         except Exception:
             scope_channels = []
         self._dashboard_widget.set_active_scope_channels(scope_channels)
+
+    def save_stage_positions(self) -> str:
+        stage_positions = self._dashboard_widget.stage_positions()
+        return json.dumps([msgspec.to_builtins(pos) for pos in stage_positions])
+
+    def restore_stage_positions(self, data: str) -> None:
+        try:
+            stage_positions = list(json.loads(data))
+        except Exception:
+            stage_positions = []
+        self._dashboard_widget.set_stage_positions(
+            [msgspec.convert(pos, Position) for pos in stage_positions]
+        )
 
     @QtCore.Slot(str)
     def _on_connect_instrument(self, instrument: str) -> None:
@@ -422,6 +453,19 @@ class MainWindow(QtWidgets.QMainWindow):
         self._context.tell(messages.MoveRelativeMessage(Vector3(pos.x, pos.y, pos.z)))
 
     @QtCore.Slot()
+    def _on_enter_move_absolute(self) -> None:
+        logger.info("entered [move absolute]")
+        self.set_inputs_enabled(False)
+        self.set_abort_enabled(False)
+        pos = self._dashboard_widget.flush_move_absolute_cache()
+        if pos is None:
+            self.operation_finished.emit()
+        else:
+            self._context.tell(
+                messages.MoveAbsoluteMessage(Vector3(pos.x, pos.y, pos.z))
+            )
+
+    @QtCore.Slot()
     def _on_enter_operation(self) -> None:
         logger.info("entered [operation]")
         self.clear_exception()
@@ -509,6 +553,7 @@ class MainWindow(QtWidgets.QMainWindow):
             dialog.set_instrument_termination(name, resource_config.termination)
             dialog.set_instrument_timeout(name, resource_config.timeout)
             dialog.set_instrument_baud_rate(name, resource_config.baud_rate)
+            dialog.set_instrument_serial_format(name, resource_config.serial_format)
 
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             for name, actor in self._context.station.actors().items():
@@ -519,6 +564,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         termination=dialog.instrument_termination(name),
                         timeout=dialog.instrument_timeout(name),
                         baud_rate=dialog.instrument_baud_rate(name),
+                        serial_format=dialog.instrument_serial_format(name),
                     )
                 )
 

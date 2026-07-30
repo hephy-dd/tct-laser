@@ -432,7 +432,7 @@ class RasterScanWidget(OperationWidget):
                 self.set_source_channels(channels)
 
     def create_raster(self, raster_type: RasterType, width: int, height: int) -> None:
-        self._raster_cache[raster_type] = create_raster(height, width)
+        self._raster_cache[raster_type] = create_raster(height, width)  # sic!
 
     def update_raster_value(
         self, raster_type: RasterType, x: int, y: int, value: float

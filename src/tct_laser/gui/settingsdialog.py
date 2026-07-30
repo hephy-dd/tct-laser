@@ -2,7 +2,12 @@ import logging
 
 from PySide6 import QtCore, QtWidgets
 
-from ..core.resource import is_serial_resource, list_resources
+from ..core.resource import (
+    SerialFormat,
+    Termination,
+    is_serial_resource,
+    list_resources,
+)
 
 __all__ = ["SettingsDialog"]
 
@@ -132,10 +137,18 @@ class SettingsDialog(QtWidgets.QDialog):
     def set_instrument_baud_rate(self, name: str, baud_rate: int) -> None:
         self.instrument_widget(name).set_baud_rate(baud_rate)
 
-    def instrument_termination(self, name: str) -> str:
+    def instrument_serial_format(self, name: str) -> SerialFormat:
+        return self.instrument_widget(name).serial_format()
+
+    def set_instrument_serial_format(
+        self, name: str, serial_format: SerialFormat
+    ) -> None:
+        self.instrument_widget(name).set_serial_format(serial_format)
+
+    def instrument_termination(self, name: str) -> Termination:
         return self.instrument_widget(name).termination()
 
-    def set_instrument_termination(self, name: str, termination: str) -> None:
+    def set_instrument_termination(self, name: str, termination: Termination) -> None:
         self.instrument_widget(name).set_termination(termination)
 
     def instrument_timeout(self, name: str) -> float:
@@ -180,12 +193,23 @@ class InstrumentWidget(QtWidgets.QWidget):
         self._baud_rate_combo_box.addItem("230400", 230400)
         self._baud_rate_combo_box.addItem("460800", 460800)
         self._baud_rate_combo_box.addItem("921600", 921600)
-        self._baud_rate_combo_box.setCurrentText("9600")
+        self._baud_rate_combo_box.setCurrentIndex(3)
+
+        self._serial_format_combo_box = QtWidgets.QComboBox(self)
+        self._serial_format_combo_box.addItem("8N1", SerialFormat.E8N1)
+        self._serial_format_combo_box.addItem("8E1", SerialFormat.E8E1)
+        self._serial_format_combo_box.addItem("8O1", SerialFormat.E8O1)
+        self._serial_format_combo_box.addItem("8N2", SerialFormat.E8N2)
+        self._serial_format_combo_box.addItem("7E1", SerialFormat.E7E1)
+        self._serial_format_combo_box.addItem("7O1", SerialFormat.E7O1)
+        self._serial_format_combo_box.setCurrentIndex(0)
 
         self._termination_combo_box = QtWidgets.QComboBox(self)
-        self._termination_combo_box.addItem("LF (\\n)", "\n")
-        self._termination_combo_box.addItem("CR (\\r)", "\r")
-        self._termination_combo_box.addItem("CR+LF (\\r\\n)", "\r\n")
+        self._termination_combo_box.addItem("LF ('\\n')", Termination.LF)
+        self._termination_combo_box.addItem("CR ('\\r')", Termination.CR)
+        self._termination_combo_box.addItem("CRLF ('\\r\\n')", Termination.CRLF)
+        self._termination_combo_box.addItem("None", Termination.NONE)
+        self._termination_combo_box.setCurrentIndex(0)
 
         self._timeout_spin_box = QtWidgets.QDoubleSpinBox(self)
         self._timeout_spin_box.setDecimals(1)
@@ -197,6 +221,7 @@ class InstrumentWidget(QtWidgets.QWidget):
         self._form_layout.addRow("Model", self._model_combo_box)
         self._form_layout.addRow("Resource Name", self._resource_widget)
         self._form_layout.addRow("Baud Rate", self._baud_rate_combo_box)
+        self._form_layout.addRow("Serial Format", self._serial_format_combo_box)
         self._form_layout.addRow("Termination", self._termination_combo_box)
         self._form_layout.addRow("Timeout", self._timeout_spin_box)
 
@@ -223,17 +248,25 @@ class InstrumentWidget(QtWidgets.QWidget):
         self._resource_name_line_edit.setText(resource_name)
 
     def baud_rate(self) -> int:
-        return int(self._baud_rate_combo_box.currentData())
+        return self._baud_rate_combo_box.currentData()
 
     def set_baud_rate(self, baud_rate: int) -> None:
         index = self._baud_rate_combo_box.findData(baud_rate)
         index = max(index, 0)
         self._baud_rate_combo_box.setCurrentIndex(index)
 
-    def termination(self) -> str:
-        return self._termination_combo_box.currentData() or ""
+    def serial_format(self) -> SerialFormat:
+        return self._serial_format_combo_box.currentData()
 
-    def set_termination(self, termination: str) -> None:
+    def set_serial_format(self, serial_format: SerialFormat) -> None:
+        index = self._serial_format_combo_box.findData(serial_format)
+        index = max(index, 0)
+        self._serial_format_combo_box.setCurrentIndex(index)
+
+    def termination(self) -> Termination:
+        return self._termination_combo_box.currentData() or Termination.NONE
+
+    def set_termination(self, termination: Termination) -> None:
         index = self._termination_combo_box.findData(termination)
         index = max(index, 0)
         self._termination_combo_box.setCurrentIndex(index)
@@ -248,9 +281,11 @@ class InstrumentWidget(QtWidgets.QWidget):
     def _on_resource_name_changed(self, resource_name: str) -> None:
         resource_name = resource_name.strip()
         if is_serial_resource(resource_name):
-            self._form_layout.setRowVisible(2, True)
+            self._form_layout.setRowVisible(2, True)  # baud rate
+            self._form_layout.setRowVisible(3, True)  # serial format
         else:
             self._form_layout.setRowVisible(2, False)
+            self._form_layout.setRowVisible(3, False)
 
     @QtCore.Slot()
     def _on_list_resources(self) -> None:
