@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Stage positions management with absolute moves (#7).
 
+### Changed
+
+- Reorganized operation inputs in group boxes for improved usability (#5).
+
 ### Fixed
 
 - Failing to display non-square raster scans (#6).
