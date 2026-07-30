@@ -9,6 +9,11 @@ emulators:
   stage:
     model: urn:comet:model:itk:corvustt
     port: 11003
+    options:
+      position:
+        x: 12.000
+        y: 8.000
+        z: 7.500
   powermeter1:
     model: urn:comet:model:thorlabs:pm100
     port: 11004
