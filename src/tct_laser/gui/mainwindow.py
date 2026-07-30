@@ -553,6 +553,7 @@ class MainWindow(QtWidgets.QMainWindow):
             dialog.set_instrument_termination(name, resource_config.termination)
             dialog.set_instrument_timeout(name, resource_config.timeout)
             dialog.set_instrument_baud_rate(name, resource_config.baud_rate)
+            dialog.set_instrument_serial_format(name, resource_config.serial_format)
 
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
             for name, actor in self._context.station.actors().items():
@@ -563,6 +564,7 @@ class MainWindow(QtWidgets.QMainWindow):
                         termination=dialog.instrument_termination(name),
                         timeout=dialog.instrument_timeout(name),
                         baud_rate=dialog.instrument_baud_rate(name),
+                        serial_format=dialog.instrument_serial_format(name),
                     )
                 )
 
