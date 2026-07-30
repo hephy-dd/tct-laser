@@ -13,8 +13,8 @@ wheels = [
 
 [[package]]
 name = "comet"
-version = "1.5.1"
-source = { url = "https://github.com/hephy-dd/comet/archive/refs/tags/v1.5.1.zip" }
+version = "1.6.0"
+source = { url = "https://github.com/hephy-dd/comet/archive/refs/tags/v1.6.0.zip" }
 dependencies = [
     { name = "numpy" },
     { name = "pint" },
@@ -26,7 +26,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "schema" },
 ]
-sdist = { hash = "sha256:1a495e1a735562a46afd02d134050ef21ff5529f081cb5a40e96eb38923e6a6d" }
+sdist = { hash = "sha256:7cfc813d592e0e1559a099c3c6447843643006deead083c39af73e31c0e7a56d" }
 
 [package.metadata]
 requires-dist = [
@@ -574,7 +574,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "comet", url = "https://github.com/hephy-dd/comet/archive/refs/tags/v1.5.1.zip" },
+    { name = "comet", url = "https://github.com/hephy-dd/comet/archive/refs/tags/v1.6.0.zip" },
     { name = "matplotlib", specifier = ">=3.11.0" },
     { name = "msgspec", specifier = ">=0.21.1" },
     { name = "numpy", specifier = "~=2.4.4" },

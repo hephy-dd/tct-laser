@@ -28,7 +28,7 @@ classifiers = [
 ]
 requires-python = ">=3.14"
 dependencies = [
-    "comet @ https://github.com/hephy-dd/comet/archive/refs/tags/v1.5.1.zip",
+    "comet @ https://github.com/hephy-dd/comet/archive/refs/tags/v1.6.0.zip",
     "matplotlib>=3.11.0",
     "msgspec>=0.21.1",
     "numpy~=2.4.4",
