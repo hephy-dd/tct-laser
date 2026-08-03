@@ -79,31 +79,37 @@ class ControlWidget(QtWidgets.QWidget):
         self._z_step_spin_box = self._create_step_spin_box(0.1)
 
         self._x_sub_button = QtWidgets.QPushButton("-", self)
+        self._x_sub_button.setMaximumWidth(32)
         self._x_sub_button.clicked.connect(
             lambda: self.move_relative.emit(-abs(self._x_step_spin_box.value()), 0, 0)
         )
 
         self._x_add_button = QtWidgets.QPushButton("+", self)
+        self._x_add_button.setMaximumWidth(32)
         self._x_add_button.clicked.connect(
             lambda: self.move_relative.emit(+abs(self._x_step_spin_box.value()), 0, 0)
         )
 
         self._y_sub_button = QtWidgets.QPushButton("-", self)
+        self._y_sub_button.setMaximumWidth(32)
         self._y_sub_button.clicked.connect(
             lambda: self.move_relative.emit(0, -abs(self._y_step_spin_box.value()), 0)
         )
 
         self._y_add_button = QtWidgets.QPushButton("+", self)
+        self._y_add_button.setMaximumWidth(32)
         self._y_add_button.clicked.connect(
             lambda: self.move_relative.emit(0, +abs(self._y_step_spin_box.value()), 0)
         )
 
         self._z_sub_button = QtWidgets.QPushButton("-", self)
+        self._z_sub_button.setMaximumWidth(32)
         self._z_sub_button.clicked.connect(
             lambda: self.move_relative.emit(0, 0, -abs(self._z_step_spin_box.value()))
         )
 
         self._z_add_button = QtWidgets.QPushButton("+", self)
+        self._z_add_button.setMaximumWidth(32)
         self._z_add_button.clicked.connect(
             lambda: self.move_relative.emit(0, 0, +abs(self._z_step_spin_box.value()))
         )
@@ -305,8 +311,9 @@ class PositionsWidget(QtWidgets.QWidget):
             return
 
         item = self._positions_tree_widget.takeTopLevelItem(index)
-        self._positions_tree_widget.insertTopLevelItem(index + 1, item)
-        self._positions_tree_widget.setCurrentItem(item)
+        if item is not None:
+            self._positions_tree_widget.insertTopLevelItem(index + 1, item)
+            self._positions_tree_widget.setCurrentItem(item)
         self._update_action_states()
 
     @QtCore.Slot()

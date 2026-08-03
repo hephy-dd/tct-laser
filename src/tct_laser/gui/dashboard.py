@@ -1,5 +1,4 @@
 from collections.abc import Iterable
-from turtle import pos
 from typing import Any
 
 from PySide6 import QtCore, QtWidgets
