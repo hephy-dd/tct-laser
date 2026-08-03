@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from enum import Enum, auto
 from pathlib import Path
+from typing import Self
 
 import msgspec
 import numpy as np
@@ -27,6 +28,22 @@ class RasterType(Enum):
     T_MAX = auto()
 
 
+class Profile(msgspec.Struct, frozen=True):
+    x: NDArray
+    y: NDArray
+
+    @classmethod
+    def create_empty(cls) -> Self:
+        return cls(x=np.zeros((0, 0)), y=np.zeros((0, 0)))
+
+    @classmethod
+    def create(cls, x: NDArray, y: NDArray) -> Self:
+        return cls(x=x, y=y)
+
+    def copy(self) -> Self:
+        return type(self)(x=self.x.copy(), y=self.y.copy())
+
+
 class RasterScanOperation(msgspec.Struct, frozen=True):
     offset_left: int
     offset_right: int
@@ -35,6 +52,8 @@ class RasterScanOperation(msgspec.Struct, frozen=True):
     n_points_x: int
     n_points_y: int
     mode: str
+    write_plots: bool
+    write_csv: bool
 
     source_channel: str
     average_count: int
@@ -55,6 +74,14 @@ class UpdateRasterValue(msgspec.Struct, frozen=True):
     x: int
     y: int
     value: float
+
+
+class UpdateXProfile(msgspec.Struct, frozen=True):
+    x_profile: Profile
+
+
+class UpdateYProfile(msgspec.Struct, frozen=True):
+    y_profile: Profile
 
 
 def create_raster(width: int, height: int) -> NDArray:
@@ -148,6 +175,12 @@ def run_raster_scan(context: Context, config: RasterScanOperation) -> None:
     y_coords = np.asarray([initial_pos.y]) + np.linspace(top, bottom, n_points_y)
     z_coords = np.asarray([initial_pos.z])
 
+    x_profile = Profile.create(x_coords, np.full(len(x_coords), np.nan))
+    context.publish_message(UpdateXProfile(x_profile.copy()))
+
+    y_profile = Profile.create(y_coords, np.full(len(y_coords), np.nan))
+    context.publish_message(UpdateYProfile(y_profile.copy()))
+
     start_pos = Vector3(
         x=initial_pos.x - left,
         y=initial_pos.y - top,
@@ -168,51 +201,54 @@ def run_raster_scan(context: Context, config: RasterScanOperation) -> None:
 
     now = datetime.now().astimezone()
 
-    file_writer = RasterScanFileWriter(output_path)
-    file_writer.create_output_path()
+    file_writer = RasterScanFileWriter(output_path) if config.write_csv else None
 
-    header = {
-        "measurement": "tct_laser",
-        "measurement_type": "raster_scan",
-        "timestamp": now.isoformat(),
-        "scan": {
-            "x_size_mm": x_size,
-            "y_size_mm": y_size,
-            "x_step_size_mm": step_x_size,
-            "y_step_size_mm": step_y_size,
-            "offset_left_mm": config.offset_left * scale,
-            "offset_right_mm": config.offset_right * scale,
-            "offset_top_mm": config.offset_top * scale,
-            "offset_bottom_mm": config.offset_bottom * scale,
-            "average_count": config.average_count,
-            "mode": config.mode,
-        },
-        "stage_position_mm": {
-            # Position before the raster scan began.
-            "x": float(initial_pos.x),
-            "y": float(initial_pos.y),
-            "z": float(initial_pos.z),
-        },
-        "scan_start_position_mm": {
-            "x": float(start_pos.x),
-            "y": float(start_pos.y),
-            "z": float(start_pos.z),
-        },
-    }
+    if file_writer is not None:
+        file_writer = RasterScanFileWriter(output_path)
+        file_writer.create_output_path()
 
-    file_writer.write_header(header)
+        header = {
+            "measurement": "tct_laser",
+            "measurement_type": "raster_scan",
+            "timestamp": now.isoformat(),
+            "scan": {
+                "x_size_mm": x_size,
+                "y_size_mm": y_size,
+                "x_step_size_mm": step_x_size,
+                "y_step_size_mm": step_y_size,
+                "offset_left_mm": config.offset_left * scale,
+                "offset_right_mm": config.offset_right * scale,
+                "offset_top_mm": config.offset_top * scale,
+                "offset_bottom_mm": config.offset_bottom * scale,
+                "average_count": config.average_count,
+                "mode": config.mode,
+            },
+            "stage_position_mm": {
+                # Position before the raster scan began.
+                "x": float(initial_pos.x),
+                "y": float(initial_pos.y),
+                "z": float(initial_pos.z),
+            },
+            "scan_start_position_mm": {
+                "x": float(start_pos.x),
+                "y": float(start_pos.y),
+                "z": float(start_pos.z),
+            },
+        }
 
-    table_columns = [
-        "index",
-        "x",
-        "y",
-        "stage_x_mm",
-        "stage_y_mm",
-        "peak_mean",
-        "area_mean",
-        "t_max_mean",
-    ]
-    file_writer.write_table_header(table_columns)
+        file_writer.write_header(header)
+
+        table_columns = [
+            "index",
+            "x",
+            "y",
+            "stage_x_mm",
+            "stage_y_mm",
+            "peak_mean",
+            "area_mean",
+            "t_max_mean",
+        ]
+        file_writer.write_table_header(table_columns)
 
     try:
         context.set_status_message("Raster Scan moving to start...")
@@ -240,6 +276,13 @@ def run_raster_scan(context: Context, config: RasterScanOperation) -> None:
             context.publish_message(UpdateRasterValue(RasterType.PEAK, x, y, mean_peak))
             logger.info("raster[%s,%s].peak: %.3G", x, y, mean_peak)
 
+            if y == n_points_y // 2:
+                x_profile.y[x] = mean_peak
+                context.publish_message(UpdateXProfile(x_profile.copy()))
+            if x == n_points_x // 2:
+                y_profile.y[y] = mean_peak
+                context.publish_message(UpdateYProfile(y_profile.copy()))
+
             # Area
             mean_area = pulse_area_window(wf.x, wf.y)
             set_raster_value(raster_area, x, y, mean_area)
@@ -263,57 +306,61 @@ def run_raster_scan(context: Context, config: RasterScanOperation) -> None:
             )
             context.set_status_progress(index + 1, total_steps)
 
-            file_writer.write_table_row(
-                [
-                    index,
-                    x,
-                    y,
-                    pos_x,
-                    pos_y,
-                    mean_peak,
-                    mean_area,
-                    mean_t_max,
-                ]
-            )
+            if file_writer is not None:
+                file_writer.write_table_row(
+                    [
+                        index,
+                        x,
+                        y,
+                        pos_x,
+                        pos_y,
+                        mean_peak,
+                        mean_area,
+                        mean_t_max,
+                    ]
+                )
     finally:
         # Complete the output file and always return to the position from
         # which the scan was started.
-        file_writer.write_footer()
+        if file_writer is not None:
+            file_writer.write_footer()
 
         context.set_status_message("Raster Scan moving back to initial_pos position...")
         session.move_absolute(initial_pos)
 
-    context.set_status_message("Writing output files...")
     context.set_status_progress(0, 0)
 
-    logger.info("generating plots...")
+    if config.write_plots:
+        context.set_status_message("Writing plots...")
 
-    plot_writer = PlotWriter(
-        raster_ampl=raster_peak[..., np.newaxis],  # add Z axis for backward compat
-        x_coords=x_coords,
-        y_coords=y_coords,
-        z_coords=z_coords,
-        output_path=output_path,
-        sample_name=sample_name,
-        timestamp=now,
-    )
+        logger.info("generating plots...")
 
-    logger.info("writing amplitude plot...")
-    try:
-        plot_writer.save_amplitude_map(z_index=0)
-    except Exception:
-        logger.exception("failed to write amplitude plot")
+        plot_writer = PlotWriter(
+            raster_ampl=raster_peak[..., np.newaxis],  # add Z axis for backward compat
+            x_coords=x_coords,
+            y_coords=y_coords,
+            z_coords=z_coords,
+            output_path=output_path,
+            sample_name=sample_name,
+            timestamp=now,
+        )
 
-    logger.info("writing XZ profile plot...")
-    try:
-        plot_writer.save_xz_profile()
-    except Exception:
-        logger.exception("failed to write XZ profile plot")
+        logger.info("writing amplitude plot...")
+        try:
+            plot_writer.save_amplitude_map(z_index=0)
+        except Exception:
+            logger.exception("failed to write amplitude plot")
 
-    logger.info("writing YZ profile plot...")
-    try:
-        plot_writer.save_yz_profile()
-    except Exception:
-        logger.exception("failed to write YZ profile plot")
+        logger.info("writing XZ profile plot...")
+        try:
+            plot_writer.save_xz_profile()
+        except Exception:
+            logger.exception("failed to write XZ profile plot")
+
+        logger.info("writing YZ profile plot...")
+        try:
+            plot_writer.save_yz_profile()
+        except Exception:
+            logger.exception("failed to write YZ profile plot")
 
     context.set_status_message("Raster Scan done.")
