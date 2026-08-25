@@ -50,3 +50,6 @@ tct-laser = "tct_laser.__main__:main"
 
 [tool.ruff.lint]
 extend-ignore = ["BLE001"]
+
+[tool.basedpyright]
+typeCheckingMode = "standard"
