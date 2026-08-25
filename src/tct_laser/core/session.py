@@ -2,9 +2,8 @@ import logging
 import time
 from dataclasses import dataclass
 
-from tct_laser.core.messages import PositionChanged
-
 from .context import WorkerContext as Context
+from .events import PositionChangedEvent
 from .utils import Vector3, Waveform
 
 logger = logging.getLogger(__name__)
@@ -26,7 +25,7 @@ class Session:
                 return False
             self.context.sleep(interval)
             position = stage.get_position()
-            self.context.publish_message(PositionChanged(position))
+            self.context.submit_event(PositionChangedEvent(position))
             if not stage.is_moving():
                 return True
         raise TimeoutError("Stage move timeout")

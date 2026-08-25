@@ -7,14 +7,14 @@ from typing import Any
 
 from pathvalidate import sanitize_filepath
 
-from .messages import (
-    Connect,
-    Disconnect,
-    Failed,
-    Finished,
-    StatusMessage,
-    StatusProgress,
-    WaveformChanged,
+from .events import (
+    ConnectEvent,
+    DisconnectEvent,
+    FailedEvent,
+    FinishedEvent,
+    StatusMessageEvent,
+    StatusProgressEvent,
+    WaveformEvent,
 )
 from .station import Station
 from .utils import Waveform
@@ -59,10 +59,10 @@ class MainContext:
         self._state.inbox.put_nowait(message)
 
     def connect(self, instrument: str) -> None:
-        self.tell(Connect(instrument))
+        self.tell(ConnectEvent(instrument))
 
     def disconnect(self, instrument: str) -> None:
-        self.tell(Disconnect(instrument))
+        self.tell(DisconnectEvent(instrument))
 
     def scope_channels(self) -> list[str]:
         return ["CHAN1", "CHAN2", "CHAN3", "CHAN4"]  # TODO
@@ -92,7 +92,7 @@ class MainContext:
             except Empty:
                 break
 
-    def next_message(self) -> Any | None:
+    def next_event(self) -> Any | None:
         try:
             return self._state.outbox.get_nowait()
         except Empty:
@@ -121,19 +121,19 @@ class WorkerContext:
         return self._state.shutdown_event.is_set()
 
     def finish(self) -> None:
-        self._tell(Finished())
+        self._tell(FinishedEvent())
 
     def fail(self, exc: Exception) -> None:
-        self._tell(Failed(exc))
+        self._tell(FailedEvent(exc))
 
     def set_status_message(self, text: str) -> None:
-        self._tell(StatusMessage(text))
+        self._tell(StatusMessageEvent(text))
 
     def set_status_progress(self, step: int, steps: int) -> None:
-        self._tell(StatusProgress(step, steps))
+        self._tell(StatusProgressEvent(step, steps))
 
-    def publish_message(self, message: Any) -> None:
-        self._tell(message)
+    def submit_event(self, event: Any) -> None:
+        self._tell(event)
 
     def is_live_waveform(self) -> bool:
         with self._state.lock:
@@ -144,7 +144,7 @@ class WorkerContext:
             return self._state.waveform_channels.copy()
 
     def publish_waveform(self, waveform: Waveform) -> None:
-        self._tell(WaveformChanged(waveform))
+        self._tell(WaveformEvent(waveform))
 
     def set_live_waveform_allowed(self, state: bool) -> None:
         with self._state.lock:
@@ -169,7 +169,7 @@ class WorkerContext:
             except Empty:
                 break
 
-    def next_message(self, timeout: float) -> Any | None:
+    def next_event(self, timeout: float) -> Any | None:
         try:
             return self._state.inbox.get(timeout=timeout)
         except Empty:

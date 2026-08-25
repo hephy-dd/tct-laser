@@ -169,7 +169,7 @@ def run_z_scan(context: Context, config: ZScanOperation) -> None:
 
     context.set_status_message("Z Scan...")
     context.set_status_progress(0, total_acquisitions)
-    context.publish_message(AutoFocusZ(math.nan))
+    context.submit_event(AutoFocusZ(math.nan))
     publish_focus_series(context, scanned_z_um, focus_slopes)
 
     try:
@@ -297,7 +297,7 @@ def run_z_scan(context: Context, config: ZScanOperation) -> None:
                     best_score = score
                     best_z_offset_um = z_offset_um
 
-                    context.publish_message(
+                    context.submit_event(
                         AutoFocusZ(initial_z_mm + best_z_offset_um * UM_TO_MM)
                     )
 
@@ -335,7 +335,7 @@ def run_z_scan(context: Context, config: ZScanOperation) -> None:
 
     if math.isfinite(best_z_offset_um):
         best_absolute_z_mm = initial_z_mm + best_z_offset_um * UM_TO_MM
-        context.publish_message(AutoFocusZ(best_absolute_z_mm))
+        context.submit_event(AutoFocusZ(best_absolute_z_mm))
 
         if aborted:
             context.set_status_message(
@@ -386,7 +386,7 @@ def publish_xy_series(
     processing an earlier queued message.
     """
 
-    context.publish_message(
+    context.submit_event(
         ZScanXYSeries(
             z_um=float(z_um),
             xy_um=np.array(
@@ -410,7 +410,7 @@ def publish_focus_series(
 ) -> None:
     """Publish an independent copy of the accumulated autofocus results."""
 
-    context.publish_message(
+    context.submit_event(
         ZScanSeries(
             z_um=np.array(
                 z_um,

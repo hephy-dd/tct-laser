@@ -9,7 +9,7 @@ from numpy.lib.stride_tricks import sliding_window_view
 from numpy.typing import NDArray
 from PySide6 import QtCore, QtWidgets
 
-from tct_laser.core.messages import EnabledChannelsChanged
+from tct_laser.core.events import EnabledChannelsChanged
 from tct_laser.gui.operation import OperationWidget
 
 from ..core.rasterscan import (
@@ -558,8 +558,8 @@ class RasterScanWidget(OperationWidget):
         index = self.mode_combo_box.findData(mode)
         self.mode_combo_box.setCurrentIndex(index)
 
-    def handle_message(self, message: Any) -> None:
-        match message:
+    def handle_event(self, event: Any) -> None:
+        match event:
             case CreateRaster(raster_type, width, height):
                 self.create_raster(raster_type, width, height)
             case UpdateRasterValue(raster_type, x, y, value):

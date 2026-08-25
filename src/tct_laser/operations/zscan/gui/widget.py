@@ -5,7 +5,7 @@ from typing import Any, cast
 import msgspec
 from PySide6 import QtCore, QtWidgets
 
-from tct_laser.core.messages import EnabledChannelsChanged
+from tct_laser.core.events import EnabledChannelsChanged
 from tct_laser.gui.operation import OperationWidget
 
 from ..core.zscan import AutoFocusZ, ZScanOperation, ZScanSeries, ZScanXYSeries
@@ -194,8 +194,8 @@ class ZScanWidget(OperationWidget):
             slope_v_per_um=series.slope_v_per_um,
         )
 
-    def handle_message(self, message: Any) -> None:
-        match message:
+    def handle_event(self, event: Any) -> None:
+        match event:
             case AutoFocusZ(autofocus):
                 self.set_autofocus_z_um(autofocus)
             case ZScanXYSeries() as series:

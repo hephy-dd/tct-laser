@@ -8,8 +8,23 @@ from typing import Any
 import msgspec
 from PySide6 import QtCore, QtGui, QtStateMachine, QtWidgets
 
-from ..core import messages
 from ..core.context import ContextState, MainContext, WorkerContext
+from ..core.events import (
+    ConfigureEvent,
+    EnabledChannelsChanged,
+    FailedEvent,
+    FinishedEvent,
+    LaserMetrics,
+    MoveAbsoluteEvent,
+    MoveRelativeEvent,
+    PositionChangedEvent,
+    PowerMeterAverageCount,
+    PowerMeterPower,
+    PowerMeterWavelength,
+    StatusMessageEvent,
+    StatusProgressEvent,
+    WaveformEvent,
+)
 from ..core.resource import ResourceConfig
 from ..core.service import BackgroundService
 from ..core.utils import Vector3, Waveform
@@ -375,58 +390,57 @@ class MainWindow(QtWidgets.QMainWindow):
     @QtCore.Slot()
     def _on_update_timeout(self) -> None:
         self.update_instrument_state()
-        self.process_pending_messages(max_count=1024)
+        self.process_pending_events(max_count=1024)
 
     def update_instrument_state(self) -> None:
         for name, actor in self._context.station.actors().items():
             connection_state = actor.connection_state()
             self._dashboard_widget.set_instrument_state(name, connection_state)
 
-    def process_pending_messages(self, max_count: int) -> None:
+    def process_pending_events(self, max_count: int) -> None:
         """Process at most `max_count` queued messages."""
         for _ in range(max_count):
-            message = self._context.next_message()
+            event = self._context.next_event()
 
-            if message is None:
+            if event is None:
                 return
 
-            self._dispatch_message(message)
+            self.handle_event(event)
 
-    def _dispatch_message(self, message: Any) -> None:
+    def handle_event(self, event: Any) -> None:
         """Route one application message to its handler."""
-        match message:
-            case messages.WaveformChanged(waveform):
+        match event:
+            case WaveformEvent(waveform):
                 self.set_waveform(waveform)
 
-            case messages.StatusMessage(text):
+            case StatusMessageEvent(text):
                 self.set_status_message(text)
 
-            case messages.StatusProgress(step, steps):
+            case StatusProgressEvent(step, steps):
                 self.set_status_progress(step, steps)
 
-            case messages.Failed(exception):
+            case FailedEvent(exception):
                 self.set_exception(exception)
 
-            case messages.Finished():
+            case FinishedEvent():
                 self.operation_finished.emit()
 
-            case messages.PositionChanged(position):
+            case PositionChangedEvent(position):
                 self._dashboard_widget.set_position(position)
 
-            case messages.LaserMetrics() as metrics:
+            case LaserMetrics() as metrics:
                 self._dashboard_widget.set_laser_metrics(metrics)
 
-            case messages.PowerMeterPower(index, value):
+            case PowerMeterPower(index, value):
                 self._dashboard_widget.set_laser_power(index, value)
 
-            case messages.PowerMeterWavelength(index, value):
+            case PowerMeterWavelength(index, value):
                 self._dashboard_widget.set_power_meter_wavelength(index, value)
 
-            case messages.PowerMeterAverageCount(index, value):
+            case PowerMeterAverageCount(index, value):
                 self._dashboard_widget.set_power_meter_average_count(index, value)
 
-        for operation_widget in self._dashboard_widget.operation_widgets():
-            operation_widget.handle_message(message)
+        self._dashboard_widget.handle_event(event)
 
     @QtCore.Slot()
     def _on_enter_idle(self) -> None:
@@ -442,7 +456,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.set_inputs_enabled(False)
         self.set_abort_enabled(False)
         data = self._dashboard_widget.flush_configure_cache()
-        self._context.tell(messages.ConfigureMessage(data))
+        self._context.tell(ConfigureEvent(data))
 
     @QtCore.Slot()
     def _on_enter_move_relative(self) -> None:
@@ -450,7 +464,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.set_inputs_enabled(False)
         self.set_abort_enabled(False)
         pos = self._dashboard_widget.flush_move_relative_cache()
-        self._context.tell(messages.MoveRelativeMessage(Vector3(pos.x, pos.y, pos.z)))
+        self._context.tell(MoveRelativeEvent(Vector3(pos.x, pos.y, pos.z)))
 
     @QtCore.Slot()
     def _on_enter_move_absolute(self) -> None:
@@ -461,9 +475,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if pos is None:
             self.operation_finished.emit()
         else:
-            self._context.tell(
-                messages.MoveAbsoluteMessage(Vector3(pos.x, pos.y, pos.z))
-            )
+            self._context.tell(MoveAbsoluteEvent(Vector3(pos.x, pos.y, pos.z)))
 
     @QtCore.Slot()
     def _on_enter_operation(self) -> None:
@@ -539,7 +551,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_scope_channels_changed(self, channels: Iterable[str]) -> None:
         channels = list(channels)
         self._context.set_waveform_channels(channels)
-        self._dispatch_message(messages.EnabledChannelsChanged(channels))
+        self.handle_event(EnabledChannelsChanged(channels))
 
     @QtCore.Slot()
     def show_settings(self) -> None:

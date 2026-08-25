@@ -2,19 +2,20 @@ import logging
 import time
 from collections.abc import Callable
 from threading import Event
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
+
+from tct_laser.core.utils import Vector3
 
 from .actors import LaserActor, PowerMeterActor, ScopeActor
 from .context import WorkerContext as Context
-from .lease import LeaseTimeoutError
-from .messages import (
-    ConfigureMessage,
-    Connect,
-    Disconnect,
+from .events import (
+    ConfigureEvent,
+    ConnectEvent,
+    DisconnectEvent,
     LaserMetrics,
-    MoveAbsoluteMessage,
-    MoveRelativeMessage,
-    PositionChanged,
+    MoveAbsoluteEvent,
+    MoveRelativeEvent,
+    PositionChangedEvent,
     PowerMeterAverageCount,
     PowerMeterPower,
     PowerMeterWavelength,
@@ -24,6 +25,7 @@ from .messages import (
     SetPowerMeterAverageCount,
     SetPowerMeterWavelength,
 )
+from .lease import LeaseTimeoutError
 from .service import BackgroundService, ServiceGroup
 from .session import Session
 
@@ -61,13 +63,13 @@ class Worker:
 
     def run_message_loop(self) -> None:
         while not self.shutdown_event.is_set():
-            message = self.context.next_message(timeout=0.1)
+            event = self.context.next_event(timeout=0.1)
 
-            if message is None:
+            if event is None:
                 continue
 
             try:
-                self.dispatch(message)
+                self.handle_event(event)
             except Exception as exc:
                 logger.exception("Failed to run operation")
                 self.handle_failure(exc)
@@ -75,25 +77,26 @@ class Worker:
                 self.context.finish()
                 self.context.cancel_abort()
 
-    def dispatch(self, message: object) -> None:
-        if isinstance(message, Connect):
-            run_connect(self.context, message)
-        elif isinstance(message, Disconnect):
-            run_disconnect(self.context, message)
-        elif isinstance(message, ConfigureMessage):
-            run_configure(self.context, message)
-        elif isinstance(message, MoveRelativeMessage):
-            run_move_relative(self.context, message)
-        elif isinstance(message, MoveAbsoluteMessage):
-            run_move_absolute(self.context, message)
-        elif isinstance(message, Operation):
-            try:
-                self.context.set_live_waveform_allowed(False)
-                message.run(self.context)
-            finally:
-                self.context.set_live_waveform_allowed(True)
-        else:
-            logger.error("Invalid message: %r", message)
+    def handle_event(self, event: Any) -> None:
+        match event:
+            case ConnectEvent(instrument):
+                run_connect(self.context, instrument)
+            case DisconnectEvent(instrument):
+                run_disconnect(self.context, instrument)
+            case ConfigureEvent(data):
+                run_configure(self.context, data)
+            case MoveRelativeEvent(offset):
+                run_move_relative(self.context, offset)
+            case MoveAbsoluteEvent(position):
+                run_move_absolute(self.context, position)
+            case Operation():
+                try:
+                    self.context.set_live_waveform_allowed(False)
+                    event.run(self.context)
+                finally:
+                    self.context.set_live_waveform_allowed(True)
+            case _:
+                logger.error("Invalid event: %r", event)
 
     def handle_failure(self, exc: Exception) -> None:
         self.context.fail(exc)
@@ -102,13 +105,13 @@ class Worker:
         self.context.sleep(1)
 
 
-def run_connect(context: Context, message: Connect) -> None:
-    with context.station[message.instrument].acquire(timeout=10) as actor:
+def run_connect(context: Context, instrument: str) -> None:
+    with context.station[instrument].acquire(timeout=10) as actor:
         actor.connect()
 
 
-def run_disconnect(context: Context, message: Disconnect) -> None:
-    with context.station[message.instrument].acquire(timeout=10) as actor:
+def run_disconnect(context: Context, instrument: str) -> None:
+    with context.station[instrument].acquire(timeout=10) as actor:
         actor.disconnect()
 
 
@@ -134,7 +137,7 @@ def configure_power_meter(power_meter: PowerMeterActor, parameter) -> None:
             logger.error("unsupported power meter parameter: %s", parameter)
 
 
-def run_configure(context: Context, message: ConfigureMessage) -> None:
+def run_configure(context: Context, config: list[tuple[str, Any]]) -> None:
     context.set_status_message("Configure...")
     context.set_status_progress(0, 0)
 
@@ -148,7 +151,7 @@ def run_configure(context: Context, message: ConfigureMessage) -> None:
         "power_meter_3": configure_power_meter,
     }
 
-    for instrument, parameter in message.data:
+    for instrument, parameter in config:
         logger.info("configure: %s = %s", instrument, parameter)
         lease = station[instrument]
 
@@ -158,17 +161,17 @@ def run_configure(context: Context, message: ConfigureMessage) -> None:
     context.set_status_message("Configure done.")
 
 
-def run_move_relative(context: Context, message: MoveRelativeMessage) -> None:
+def run_move_relative(context: Context, offset: Vector3) -> None:
     context.set_status_message("Move relative...")
     context.set_status_progress(0, 0)
-    Session(context).move_relative(message.offset)
+    Session(context).move_relative(offset)
     context.set_status_message("Move relative done.")
 
 
-def run_move_absolute(context: Context, message: MoveAbsoluteMessage) -> None:
+def run_move_absolute(context: Context, position: Vector3) -> None:
     context.set_status_message("Move absolute...")
     context.set_status_progress(0, 0)
-    Session(context).move_absolute(message.position)
+    Session(context).move_absolute(position)
     context.set_status_message("Move absolute done.")
 
 
@@ -226,7 +229,7 @@ class MetricsWorker:
             with station.stage.acquire(timeout=0) as stage:
                 if stage.is_connected:
                     position = stage.get_position()
-                    context.publish_message(PositionChanged(position))
+                    context.submit_event(PositionChangedEvent(position))
         except LeaseTimeoutError:
             ...
         except Exception:
@@ -266,7 +269,7 @@ class MetricsWorker:
         except Exception:
             logger.exception("failed to poll [laser]")
 
-        self.context.publish_message(metrics)
+        self.context.submit_event(metrics)
 
     def poll_power_meter(self, index: int) -> None:
         context = self.context
@@ -285,9 +288,9 @@ class MetricsWorker:
             ...
         except Exception:
             logger.exception("failed to poll [%s]", instrument)
-        context.publish_message(PowerMeterPower(index, laser_power))
-        context.publish_message(PowerMeterWavelength(index, wavelength))
-        context.publish_message(PowerMeterAverageCount(index, average_count))
+        context.submit_event(PowerMeterPower(index, laser_power))
+        context.submit_event(PowerMeterWavelength(index, wavelength))
+        context.submit_event(PowerMeterAverageCount(index, average_count))
 
 
 class WaveformWorker:

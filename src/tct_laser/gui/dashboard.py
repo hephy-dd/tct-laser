@@ -4,7 +4,7 @@ from typing import Any
 from PySide6 import QtCore, QtWidgets
 
 from ..core.actors.instrument import ConnectionState
-from ..core.messages import (
+from ..core.events import (
     LaserMetrics,
     SetLaserFrequency,
     SetLaserOutput,
@@ -349,3 +349,7 @@ class DashboardWidget(QtWidgets.QWidget):
 
     def set_output_path(self, output_path: str) -> None:
         self.general_group_box.set_output_path(output_path)
+
+    def handle_event(self, event: Any) -> None:
+        for operation_widget in self.operation_widgets():
+            operation_widget.handle_event(event)

@@ -2,7 +2,7 @@ import math
 
 from PySide6 import QtCore, QtWidgets
 
-from tct_laser.core.messages import LaserMetrics
+from tct_laser.core.events import LaserMetrics
 
 from ..utils import update_check_box, update_double_spin_box
 

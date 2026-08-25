@@ -153,15 +153,15 @@ def run_raster_scan(context: Context, config: RasterScanOperation) -> None:
 
     logger.info("create raster: peak, %d, %d", n_points_x, n_points_y)
     raster_peak = create_raster(n_points_x, n_points_y)
-    context.publish_message(CreateRaster(RasterType.PEAK, n_points_x, n_points_y))
+    context.submit_event(CreateRaster(RasterType.PEAK, n_points_x, n_points_y))
 
     logger.info("create raster: area, %d, %d", n_points_x, n_points_y)
     raster_area = create_raster(n_points_x, n_points_y)
-    context.publish_message(CreateRaster(RasterType.AREA, n_points_x, n_points_y))
+    context.submit_event(CreateRaster(RasterType.AREA, n_points_x, n_points_y))
 
     logger.info("create raster: t_max, %d, %d", n_points_x, n_points_y)
     raster_t_max = create_raster(n_points_x, n_points_y)
-    context.publish_message(CreateRaster(RasterType.T_MAX, n_points_x, n_points_y))
+    context.submit_event(CreateRaster(RasterType.T_MAX, n_points_x, n_points_y))
 
     context.set_status_message("Raster Scan (0, 0)")
     context.set_status_progress(0, total_steps)
@@ -176,10 +176,10 @@ def run_raster_scan(context: Context, config: RasterScanOperation) -> None:
     z_coords = np.asarray([initial_pos.z])
 
     x_profile = Profile.create(x_coords, np.full(len(x_coords), np.nan))
-    context.publish_message(UpdateXProfile(x_profile.copy()))
+    context.submit_event(UpdateXProfile(x_profile.copy()))
 
     y_profile = Profile.create(y_coords, np.full(len(y_coords), np.nan))
-    context.publish_message(UpdateYProfile(y_profile.copy()))
+    context.submit_event(UpdateYProfile(y_profile.copy()))
 
     start_pos = Vector3(
         x=initial_pos.x - left,
@@ -273,29 +273,27 @@ def run_raster_scan(context: Context, config: RasterScanOperation) -> None:
             # Peak
             mean_peak = float(np.max(wf.y))
             set_raster_value(raster_peak, x, y, mean_peak)
-            context.publish_message(UpdateRasterValue(RasterType.PEAK, x, y, mean_peak))
+            context.submit_event(UpdateRasterValue(RasterType.PEAK, x, y, mean_peak))
             logger.info("raster[%s,%s].peak: %.3G", x, y, mean_peak)
 
             if y == n_points_y // 2:
                 x_profile.y[x] = mean_peak
-                context.publish_message(UpdateXProfile(x_profile.copy()))
+                context.submit_event(UpdateXProfile(x_profile.copy()))
             if x == n_points_x // 2:
                 y_profile.y[y] = mean_peak
-                context.publish_message(UpdateYProfile(y_profile.copy()))
+                context.submit_event(UpdateYProfile(y_profile.copy()))
 
             # Area
             mean_area = pulse_area_window(wf.x, wf.y)
             set_raster_value(raster_area, x, y, mean_area)
-            context.publish_message(UpdateRasterValue(RasterType.AREA, x, y, mean_area))
+            context.submit_event(UpdateRasterValue(RasterType.AREA, x, y, mean_area))
             logger.info("raster[%s,%s].area: %.3G", x, y, mean_area)
 
             # Time of maximum
             imax = int(np.argmax(wf.y))
             mean_t_max = float(wf.x[imax])
             set_raster_value(raster_t_max, x, y, mean_t_max)
-            context.publish_message(
-                UpdateRasterValue(RasterType.T_MAX, x, y, mean_t_max)
-            )
+            context.submit_event(UpdateRasterValue(RasterType.T_MAX, x, y, mean_t_max))
             logger.info("raster[%s,%s].t_max: %.3G", x, y, mean_t_max)
 
             e.advance()
