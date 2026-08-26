@@ -13,6 +13,7 @@ class OperationWidget(QtWidgets.QWidget):
 
     start_triggered = QtCore.Signal()
     abort_triggered = QtCore.Signal()
+    event_submitted = QtCore.Signal(object)
 
     def set_inputs_enabled(self, enabled: bool) -> None: ...
 
@@ -21,6 +22,9 @@ class OperationWidget(QtWidgets.QWidget):
     def clear(self) -> None: ...
 
     def handle_event(self, event: Any) -> None: ...
+
+    def submit_event(self, event: Any) -> None:
+        self.event_submitted.emit(event)
 
     def read_settings(self, settings: QtCore.QSettings) -> None: ...
 

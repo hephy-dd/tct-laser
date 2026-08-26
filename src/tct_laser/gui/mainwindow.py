@@ -275,6 +275,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._run_menu.insertAction(self._run_operation_sep, start_action)
         start_action.triggered.connect(lambda: self.operation_started.emit(operation))
         operation.abort_triggered.connect(self._abort_action.trigger)
+        operation.event_submitted.connect(self.handle_event)
         self._dashboard_widget.add_operation(operation)
         self._operation_start_actions.append(start_action)
 
