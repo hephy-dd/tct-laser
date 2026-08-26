@@ -25,7 +25,7 @@ __all__ = ["ContextState", "MainContext", "WorkerContext", "create_contexts"]
 DEFAULT_SAMPLE_NAME = "Unnamed"
 DEFAULT_OUTPUT_PATH = str(Path.cwd())
 
-type OperationRunner = Callable[[MainContext], None]
+type OperationRunner = Callable[[WorkerContext], None]
 
 
 class RunOperationEvent(msgspec.Struct, frozen=True):
