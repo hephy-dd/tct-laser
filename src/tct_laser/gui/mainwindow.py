@@ -10,30 +10,29 @@ from PySide6 import QtCore, QtGui, QtStateMachine, QtWidgets
 
 from ..core.context import ContextState, MainContext, WorkerContext
 from ..core.events import (
+    ChannelsChangedEvent,
     ConfigureEvent,
-    EnabledChannelsChanged,
     FailedEvent,
     FinishedEvent,
-    LaserMetrics,
+    LaserMetricsEvent,
     MoveAbsoluteEvent,
     MoveRelativeEvent,
     PositionChangedEvent,
-    PowerMeterAverageCount,
-    PowerMeterPower,
-    PowerMeterWavelength,
+    PowerMeterMetricsEvent,
     StatusMessageEvent,
     StatusProgressEvent,
     WaveformEvent,
 )
 from ..core.resource import ResourceConfig
 from ..core.service import BackgroundService
-from ..core.utils import Vector3, Waveform
+from ..core.utils import Vector3
 from ..core.worker import Worker
-from ..operations import operation_registry
+from ..operations import RasterScanWidget, ZScanWidget
 from . import config
 from .dashboard import DashboardWidget, Position
 from .logwidget import LogWidget
 from .operation import OperationWidget
+from .services import WaveformService
 from .settingsdialog import SettingsDialog
 
 __all__ = ["MainWindow"]
@@ -44,6 +43,10 @@ logger = logging.getLogger(__name__)
 class MainWindow(QtWidgets.QMainWindow):
     operation_started = QtCore.Signal(object)
     operation_finished = QtCore.Signal()
+
+    configure_triggered = QtCore.Signal()
+    move_relative_triggered = QtCore.Signal()
+    move_absolute_triggered = QtCore.Signal()
 
     def __init__(
         self, state: ContextState, parent: QtWidgets.QWidget | None = None
@@ -67,13 +70,8 @@ class MainWindow(QtWidgets.QMainWindow):
             lambda operation: setattr(self, "_current_operation", operation)
         )
 
-        self._waveform_cache: dict[str, Waveform] = {}
-
-        self._waveform_timer = QtCore.QTimer(self)
-        self._waveform_timer.timeout.connect(self._on_update_waveform)
-        self._waveform_timer.start(16)
-
         self._create_state_machine()
+        self._create_operations()
 
         # Sync
 
@@ -83,13 +81,23 @@ class MainWindow(QtWidgets.QMainWindow):
         self._update_timer.timeout.connect(self._on_update_timeout)
         self._update_timer.start(250)
 
+        # Waveforms
+
+        self._waveform_service = WaveformService(self)
+
+        def update_waveform(channel: str) -> None:
+            waveform = self._waveform_service.get_waveform(channel)
+            if waveform is not None:
+                self._dashboard_widget.scope_group_box.set_waveform(waveform)
+
+        self._waveform_service.waveform_changed.connect(update_waveform)
+
         # Worker thread
+
         self._background_service = BackgroundService(
             "worker", Worker(WorkerContext(state))
         )
         self._background_service.start()
-
-        self._load_operations()
 
         self._settings = QtCore.QSettings()
         self.read_settings(self._settings)
@@ -146,6 +154,13 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self._dashboard_widget.output_path_changed.connect(
             lambda output_path: self._context.set_output_path(output_path)
+        )
+        self._dashboard_widget.configure_triggered.connect(self.configure_triggered)
+        self._dashboard_widget.move_relative_triggered.connect(
+            self.move_relative_triggered
+        )
+        self._dashboard_widget.move_absolute_triggered.connect(
+            self.move_absolute_triggered
         )
 
         # Scope
@@ -207,14 +222,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self._abort_state = QtStateMachine.QState()
         self._abort_state.entered.connect(self._on_enter_abort)
 
+        self._idle_state.addTransition(self.configure_triggered, self._configure_state)
         self._idle_state.addTransition(
-            self._dashboard_widget.configure_triggered, self._configure_state
+            self.move_relative_triggered, self._move_relative_state
         )
         self._idle_state.addTransition(
-            self._dashboard_widget.move_relative_triggered, self._move_relative_state
-        )
-        self._idle_state.addTransition(
-            self._dashboard_widget.move_absolute_triggered, self._move_absolute_state
+            self.move_absolute_triggered, self._move_absolute_state
         )
         self._idle_state.addTransition(self.operation_started, self._operation_state)
 
@@ -251,9 +264,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._state_machine.setInitialState(self._idle_state)
         self._state_machine.start()
 
-    def _load_operations(self) -> None:
-        for widget_cls in operation_registry:
-            self.add_operation(widget_cls(self))
+    def _create_operations(self) -> None:
+        self.add_operation(RasterScanWidget(self))
+        self.add_operation(ZScanWidget(self))
 
     def add_operation(self, operation: OperationWidget) -> None:
         self._run_operation_sep.setVisible(True)
@@ -356,7 +369,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._context.connect(instrument)
 
     def save_scope_channels(self) -> str:
-        scope_channels = self._dashboard_widget.active_scope_channels()
+        scope_channels = self._dashboard_widget.scope_group_box.active_channels()
         return json.dumps(list(scope_channels))
 
     def restore_scope_channels(self, data: str) -> None:
@@ -364,7 +377,7 @@ class MainWindow(QtWidgets.QMainWindow):
             scope_channels = list(json.loads(data))
         except Exception:
             scope_channels = []
-        self._dashboard_widget.set_active_scope_channels(scope_channels)
+        self._dashboard_widget.scope_group_box.set_active_channels(scope_channels)
 
     def save_stage_positions(self) -> str:
         stage_positions = self._dashboard_widget.stage_positions()
@@ -411,7 +424,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """Route one application message to its handler."""
         match event:
             case WaveformEvent(waveform):
-                self.set_waveform(waveform)
+                self._waveform_service.set_waveform(waveform)
 
             case StatusMessageEvent(text):
                 self.set_status_message(text)
@@ -428,17 +441,11 @@ class MainWindow(QtWidgets.QMainWindow):
             case PositionChangedEvent(position):
                 self._dashboard_widget.set_position(position)
 
-            case LaserMetrics() as metrics:
+            case LaserMetricsEvent(_, metrics):
                 self._dashboard_widget.set_laser_metrics(metrics)
 
-            case PowerMeterPower(index, value):
-                self._dashboard_widget.set_laser_power(index, value)
-
-            case PowerMeterWavelength(index, value):
-                self._dashboard_widget.set_power_meter_wavelength(index, value)
-
-            case PowerMeterAverageCount(index, value):
-                self._dashboard_widget.set_power_meter_average_count(index, value)
+            case PowerMeterMetricsEvent(name, metrics):
+                self._dashboard_widget.set_power_meter_metrics(name, metrics)
 
         self._dashboard_widget.handle_event(event)
 
@@ -456,7 +463,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.set_inputs_enabled(False)
         self.set_abort_enabled(False)
         data = self._dashboard_widget.flush_configure_cache()
-        self._context.tell(ConfigureEvent(data))
+        self._context.submit_event(ConfigureEvent(data))
 
     @QtCore.Slot()
     def _on_enter_move_relative(self) -> None:
@@ -464,7 +471,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.set_inputs_enabled(False)
         self.set_abort_enabled(False)
         pos = self._dashboard_widget.flush_move_relative_cache()
-        self._context.tell(MoveRelativeEvent(Vector3(pos.x, pos.y, pos.z)))
+        self._context.submit_event(MoveRelativeEvent(Vector3(pos.x, pos.y, pos.z)))
 
     @QtCore.Slot()
     def _on_enter_move_absolute(self) -> None:
@@ -475,7 +482,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if pos is None:
             self.operation_finished.emit()
         else:
-            self._context.tell(MoveAbsoluteEvent(Vector3(pos.x, pos.y, pos.z)))
+            self._context.submit_event(MoveAbsoluteEvent(Vector3(pos.x, pos.y, pos.z)))
 
     @QtCore.Slot()
     def _on_enter_operation(self) -> None:
@@ -483,12 +490,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.clear_exception()
         self.set_inputs_enabled(False)
         self.set_abort_enabled(True)
-        current_operation = self._current_operation
-        if current_operation is not None:
-            self._dashboard_widget.show_operation(current_operation)
-            current_operation.clear()
-            operation = current_operation.config()
-            self._context.tell(operation)
+        operation = self._current_operation
+        if operation is not None:
+            self._dashboard_widget.show_operation(operation)
+            operation.clear()
+            self._context.submit_operation(operation.create_runner())
         self._current_operation = None
 
     @QtCore.Slot()
@@ -527,22 +533,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def clear_progress(self) -> None:
         self._progress_bar.hide()
 
-    @QtCore.Slot()
-    def _on_update_waveform(self) -> None:
-        if self._waveform_cache:
-            waveforms = list(self._waveform_cache.values())
-            channels = self._dashboard_widget.active_scope_channels()
-            filtered_waveform = []
-            for waveform in waveforms:
-                if waveform.channel in channels:
-                    filtered_waveform.append(waveform)
-                else:
-                    self._waveform_cache.pop(waveform.channel, None)
-            self._dashboard_widget.scope_group_box.set_waveforms(filtered_waveform)
-
-    def set_waveform(self, waveform: Waveform):
-        self._waveform_cache[waveform.channel] = waveform
-
     @QtCore.Slot(bool)
     def _on_toggle_scope_live(self, toggled: bool) -> None:
         self._context.set_live_waveform(toggled)
@@ -551,7 +541,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_scope_channels_changed(self, channels: Iterable[str]) -> None:
         channels = list(channels)
         self._context.set_waveform_channels(channels)
-        self.handle_event(EnabledChannelsChanged(channels))
+        self.handle_event(ChannelsChangedEvent(channels))
 
     @QtCore.Slot()
     def show_settings(self) -> None:

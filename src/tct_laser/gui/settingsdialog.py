@@ -8,6 +8,7 @@ from ..core.resource import (
     is_serial_resource,
     list_resources,
 )
+from ..core.station import Role
 
 __all__ = ["SettingsDialog"]
 
@@ -93,12 +94,12 @@ class SettingsDialog(QtWidgets.QDialog):
         layout.addWidget(self._dialog_button_box)
 
         self._instrument_widgets: dict[str, InstrumentWidget] = {
-            "scope": self._scope_widget,
-            "laser": self._laser_widget,
-            "stage": self._stage_widget,
-            "power_meter_1": self._power_meter_1_widget,
-            "power_meter_2": self._power_meter_2_widget,
-            "power_meter_3": self._power_meter_3_widget,
+            Role.SCOPE: self._scope_widget,
+            Role.LASER: self._laser_widget,
+            Role.STAGE: self._stage_widget,
+            Role.POWER_METER_1: self._power_meter_1_widget,
+            Role.POWER_METER_2: self._power_meter_2_widget,
+            Role.POWER_METER_3: self._power_meter_3_widget,
         }
 
     def instrument_widget(self, name: str):

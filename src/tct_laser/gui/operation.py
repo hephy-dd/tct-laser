@@ -1,6 +1,9 @@
+from collections.abc import Callable
 from typing import Any
 
 from PySide6 import QtCore, QtWidgets
+
+from ..core.context import WorkerContext
 
 __all__ = ["OperationWidget"]
 
@@ -22,3 +25,5 @@ class OperationWidget(QtWidgets.QWidget):
     def read_settings(self, settings: QtCore.QSettings) -> None: ...
 
     def write_settings(self, settings: QtCore.QSettings) -> None: ...
+
+    def create_runner(self) -> Callable[[WorkerContext], None]: ...

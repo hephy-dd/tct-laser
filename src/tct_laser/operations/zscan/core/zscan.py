@@ -16,7 +16,8 @@ from .utils import focus_slope, path_distance, vector_length
 
 __all__ = [
     "AutoFocusZ",
-    "ZScanOperation",
+    "ZScanOperationConfig",
+    "ZScanOperationRunner",
     "ZScanSeries",
     "ZScanXYSeries",
 ]
@@ -30,18 +31,7 @@ POSITION_TOLERANCE_MM = 1e-9
 MOVE_SETTLING_TIME_S = 0.05
 
 
-class ZScanOperation(msgspec.Struct, frozen=True):
-    """
-    Find the best relative Z focus by scanning an XY line at several Z offsets.
-
-    All configured offsets are expressed in micrometres. Stage positions and
-    movement commands are expressed in millimetres.
-
-    ``z_steps`` and ``xy_steps`` are inclusive point counts. For example,
-    ``z_steps=5`` produces five Z coordinates including the configured start
-    and stop offsets.
-    """
-
+class ZScanOperationConfig(msgspec.Struct, frozen=True):
     z_start_offset_um: int
     z_stop_offset_um: int
     z_steps: int
@@ -55,9 +45,24 @@ class ZScanOperation(msgspec.Struct, frozen=True):
     source_channel: str
     average_count: int
 
-    def run(self, context: Context) -> None:
-        run_initialize(context, self)
-        run_z_scan(context, self)
+
+class ZScanOperationRunner(msgspec.Struct, frozen=True):
+    """
+    Find the best relative Z focus by scanning an XY line at several Z offsets.
+
+    All configured offsets are expressed in micrometres. Stage positions and
+    movement commands are expressed in millimetres.
+
+    ``z_steps`` and ``xy_steps`` are inclusive point counts. For example,
+    ``z_steps=5`` produces five Z coordinates including the configured start
+    and stop offsets.
+    """
+
+    config: ZScanOperationConfig
+
+    def __call__(self, context: Context) -> None:
+        run_initialize(context, self.config)
+        run_z_scan(context, self.config)
 
 
 class AutoFocusZ(msgspec.Struct, frozen=True):
@@ -86,7 +91,7 @@ class ZScanSeries(msgspec.Struct, frozen=True):
     slope_v_per_um: FloatArray
 
 
-def run_initialize(context: Context, config: ZScanOperation) -> None:
+def run_initialize(context: Context, config: ZScanOperationConfig) -> None:
     validate_config(config)
 
     station = context.station
@@ -102,7 +107,7 @@ def run_initialize(context: Context, config: ZScanOperation) -> None:
         scope.set_average_count(config.average_count)
 
 
-def validate_config(config: ZScanOperation) -> None:
+def validate_config(config: ZScanOperationConfig) -> None:
     if config.z_steps <= 0:
         raise ValueError("Z scan point count must be greater than zero.")
 
@@ -121,7 +126,7 @@ def validate_config(config: ZScanOperation) -> None:
         raise ValueError("XY scan start and stop positions must be different.")
 
 
-def run_z_scan(context: Context, config: ZScanOperation) -> None:
+def run_z_scan(context: Context, config: ZScanOperationConfig) -> None:
     session = Session(context)
 
     channel = config.source_channel

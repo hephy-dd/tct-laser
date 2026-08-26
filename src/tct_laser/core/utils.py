@@ -5,6 +5,14 @@ import msgspec
 import numpy as np
 from numpy.typing import NDArray
 
+__all__ = [
+    "Vector3",
+    "Waveform",
+    "pulse_area_window",
+    "safe_iso_timestamp",
+    "si_format",
+]
+
 SI_PREFIXES = [
     (1e-12, "p"),  # pico
     (1e-9, "n"),  # nano

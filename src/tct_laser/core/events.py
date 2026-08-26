@@ -53,6 +53,11 @@ class LaserMetrics(msgspec.Struct, frozen=True):
     diode_temperature: bool | None = None
 
 
+class LaserMetricsEvent(msgspec.Struct, frozen=True):
+    name: str
+    metrics: LaserMetrics
+
+
 class SetPowerMeterWavelength(msgspec.Struct, frozen=True):
     wavelength: int
 
@@ -61,19 +66,15 @@ class SetPowerMeterAverageCount(msgspec.Struct, frozen=True):
     count: int
 
 
-class PowerMeterWavelength(msgspec.Struct, frozen=True):
-    index: int
-    wavelength: int | None
+class PowerMeterMetrics(msgspec.Struct, frozen=True):
+    wavelength: int | None = None
+    average_count: int | None = None
+    power: float | None = None
 
 
-class PowerMeterAverageCount(msgspec.Struct, frozen=True):
-    index: int
-    average_count: int | None
-
-
-class PowerMeterPower(msgspec.Struct, frozen=True):
-    index: int
-    value: float | None
+class PowerMeterMetricsEvent(msgspec.Struct, frozen=True):
+    name: str
+    metrics: PowerMeterMetrics
 
 
 class PositionChangedEvent(msgspec.Struct, frozen=True):
@@ -88,7 +89,7 @@ class MoveAbsoluteEvent(msgspec.Struct, frozen=True):
     position: Vector3
 
 
-class EnabledChannelsChanged(msgspec.Struct, frozen=True):
+class ChannelsChangedEvent(msgspec.Struct, frozen=True):
     channels: list[str]
 
 

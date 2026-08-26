@@ -17,7 +17,10 @@ from tct_laser.core.utils import Vector3, pulse_area_window
 from .plots import PlotWriter
 from .writer import RasterScanFileWriter
 
-__all__ = ["RasterScanOperation"]
+__all__ = [
+    "RasterScanOperationConfig",
+    "RasterScanOperationRunner",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +47,7 @@ class Profile(msgspec.Struct, frozen=True):
         return type(self)(x=self.x.copy(), y=self.y.copy())
 
 
-class RasterScanOperation(msgspec.Struct, frozen=True):
+class RasterScanOperationConfig(msgspec.Struct, frozen=True):
     offset_left: int
     offset_right: int
     offset_top: int
@@ -58,9 +61,13 @@ class RasterScanOperation(msgspec.Struct, frozen=True):
     source_channel: str
     average_count: int
 
-    def run(self, context: Context) -> None:
-        run_initialize(context, self)
-        run_raster_scan(context, self)
+
+class RasterScanOperationRunner(msgspec.Struct, frozen=True):
+    config: RasterScanOperationConfig
+
+    def __call__(self, context: Context) -> None:
+        run_initialize(context, self.config)
+        run_raster_scan(context, self.config)
 
 
 class CreateRaster(msgspec.Struct, frozen=True):
@@ -92,7 +99,7 @@ def set_raster_value(raster: NDArray, x: int, y: int, value: float) -> None:
     raster[x, y] = value
 
 
-def run_initialize(context: Context, config: RasterScanOperation) -> None:
+def run_initialize(context: Context, config: RasterScanOperationConfig) -> None:
     station = context.station
 
     with station.laser.acquire(timeout=context.timeout) as laser:
@@ -106,7 +113,7 @@ def run_initialize(context: Context, config: RasterScanOperation) -> None:
         scope.set_average_count(config.average_count)
 
 
-def run_raster_scan(context: Context, config: RasterScanOperation) -> None:
+def run_raster_scan(context: Context, config: RasterScanOperationConfig) -> None:
     session = Session(context)
     station = context.station
 

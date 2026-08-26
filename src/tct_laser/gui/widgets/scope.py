@@ -72,9 +72,19 @@ class ScopePlotWidget(QtWidgets.QWidget):
 
         self._curves[waveform.channel].setData(x, y)
 
+    def clear_waveform(self, channel: str) -> None:
+        curve = self._curves.get(channel)
+        if curve is not None:
+            curve.clear()
+
     def clear_waveforms(self) -> None:
         for curve in self._curves.values():
             curve.clear()
+
+    def update_channels(self, channels: list[str]) -> None:
+        for channel, curve in self._curves.items():
+            if channel not in channels:
+                curve.setData([], [])
 
 
 class ScopeGroupBox(QtWidgets.QGroupBox):
@@ -95,6 +105,8 @@ class ScopeGroupBox(QtWidgets.QGroupBox):
 
         self._channel_check_boxes: dict[str, QtWidgets.QCheckBox] = {}
         self._channel_layout = QtWidgets.QHBoxLayout()
+
+        self.channels_changed.connect(self._plot_widget.update_channels)
 
         form_layout = QtWidgets.QFormLayout()
         form_layout.addWidget(self._live_preview_button)
@@ -140,14 +152,13 @@ class ScopeGroupBox(QtWidgets.QGroupBox):
         for check_box in self._channel_check_boxes.values():
             check_box.setEnabled(enabled)
 
+    @QtCore.Slot(object)
     def set_waveform(self, waveform):
-        self._plot_widget.clear_waveforms()
         self._plot_widget.set_waveform(waveform)
 
-    def set_waveforms(self, waveforms: list[Waveform]):
+    @QtCore.Slot()
+    def clear_waveforms(self, waveform):
         self._plot_widget.clear_waveforms()
-        for waveform in waveforms:
-            self._plot_widget.set_waveform(waveform)
 
     @QtCore.Slot(int)
     def _on_channel_changed(self) -> None:

@@ -5,10 +5,16 @@ from typing import Any, cast
 import msgspec
 from PySide6 import QtCore, QtWidgets
 
-from tct_laser.core.events import EnabledChannelsChanged
+from tct_laser.core.events import ChannelsChangedEvent
 from tct_laser.gui.operation import OperationWidget
 
-from ..core.zscan import AutoFocusZ, ZScanOperation, ZScanSeries, ZScanXYSeries
+from ..core.zscan import (
+    AutoFocusZ,
+    ZScanOperationConfig,
+    ZScanOperationRunner,
+    ZScanSeries,
+    ZScanXYSeries,
+)
 from .plotwidgets import ZScanHPlotWidget, ZScanPlotWidget
 
 
@@ -202,15 +208,15 @@ class ZScanWidget(OperationWidget):
                 self.set_z_scan_xy_series(series)
             case ZScanSeries() as series:
                 self.set_z_scan_series(series)
-            case EnabledChannelsChanged(channels):
+            case ChannelsChangedEvent(channels):
                 self.set_source_channels(channels)
 
     def clear(self) -> None:
         self.z_scan_plot.clear()
         self.z_scan_h_plot.clear()
 
-    def config(self) -> ZScanOperation:
-        return ZScanOperation(
+    def config(self) -> ZScanOperationConfig:
+        return ZScanOperationConfig(
             z_start_offset_um=self.z_start_offset_spin_box.value(),
             z_stop_offset_um=self.z_stop_offset_spin_box.value(),
             z_steps=self.z_steps_spin_box.value(),
@@ -223,7 +229,7 @@ class ZScanWidget(OperationWidget):
             average_count=self.average_count_spin_box.value(),
         )
 
-    def set_config(self, config: ZScanOperation) -> None:
+    def set_config(self, config: ZScanOperationConfig) -> None:
         self.z_start_offset_spin_box.setValue(config.z_start_offset_um)
         self.z_stop_offset_spin_box.setValue(config.z_stop_offset_um)
         self.z_steps_spin_box.setValue(config.z_steps)
@@ -234,6 +240,9 @@ class ZScanWidget(OperationWidget):
         self.xy_steps_spin_box.setValue(config.xy_steps)
         self.set_source_channel(config.source_channel)
         self.average_count_spin_box.setValue(config.average_count)
+
+    def create_runner(self) -> ZScanOperationRunner:
+        return ZScanOperationRunner(config=self.config())
 
     def read_settings(self, settings: QtCore.QSettings) -> None:
         settings.beginGroup("ZScan")
@@ -247,7 +256,7 @@ class ZScanWidget(OperationWidget):
             base = msgspec.to_builtins(self.config())
             base.update(loaded)
 
-            self.set_config(msgspec.convert(base, type=ZScanOperation))
+            self.set_config(msgspec.convert(base, type=ZScanOperationConfig))
         except msgspec.DecodeError, msgspec.ValidationError, TypeError:
             # Ignore invalid or incompatible settings.
             pass

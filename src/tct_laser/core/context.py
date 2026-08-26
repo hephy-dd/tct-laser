@@ -1,10 +1,11 @@
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Event, RLock
 from typing import Any
 
+import msgspec
 from pathvalidate import sanitize_filepath
 
 from .events import (
@@ -23,6 +24,12 @@ __all__ = ["ContextState", "MainContext", "WorkerContext", "create_contexts"]
 
 DEFAULT_SAMPLE_NAME = "Unnamed"
 DEFAULT_OUTPUT_PATH = str(Path.cwd())
+
+type OperationRunner = Callable[[MainContext], None]
+
+
+class RunOperationEvent(msgspec.Struct, frozen=True):
+    operation_runner: OperationRunner
 
 
 @dataclass(slots=True)
@@ -55,14 +62,17 @@ class MainContext:
         self._state.abort_event.set()
         self._state.shutdown_event.set()
 
-    def tell(self, message: Any) -> None:
-        self._state.inbox.put_nowait(message)
+    def submit_event(self, event: Any) -> None:
+        self._state.inbox.put_nowait(event)
+
+    def submit_operation(self, operation_runner: OperationRunner) -> None:
+        self.submit_event(RunOperationEvent(operation_runner=operation_runner))
 
     def connect(self, instrument: str) -> None:
-        self.tell(ConnectEvent(instrument))
+        self.submit_event(ConnectEvent(instrument))
 
     def disconnect(self, instrument: str) -> None:
-        self.tell(DisconnectEvent(instrument))
+        self.submit_event(DisconnectEvent(instrument))
 
     def scope_channels(self) -> list[str]:
         return ["CHAN1", "CHAN2", "CHAN3", "CHAN4"]  # TODO

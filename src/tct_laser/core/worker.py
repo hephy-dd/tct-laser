@@ -2,23 +2,24 @@ import logging
 import time
 from collections.abc import Callable
 from threading import Event
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
 from tct_laser.core.utils import Vector3
 
 from .actors import LaserActor, PowerMeterActor, ScopeActor
+from .context import RunOperationEvent
 from .context import WorkerContext as Context
 from .events import (
     ConfigureEvent,
     ConnectEvent,
     DisconnectEvent,
     LaserMetrics,
+    LaserMetricsEvent,
     MoveAbsoluteEvent,
     MoveRelativeEvent,
     PositionChangedEvent,
-    PowerMeterAverageCount,
-    PowerMeterPower,
-    PowerMeterWavelength,
+    PowerMeterMetrics,
+    PowerMeterMetricsEvent,
     SetLaserFrequency,
     SetLaserOutput,
     SetLaserTune,
@@ -28,13 +29,11 @@ from .events import (
 from .lease import LeaseTimeoutError
 from .service import BackgroundService, ServiceGroup
 from .session import Session
+from .station import Role
 
 logger = logging.getLogger(__name__)
 
-
-@runtime_checkable
-class Operation(Protocol):
-    def run(self, context: Context) -> None: ...
+__all__ = ["Worker"]
 
 
 class Worker:
@@ -89,10 +88,10 @@ class Worker:
                 run_move_relative(self.context, offset)
             case MoveAbsoluteEvent(position):
                 run_move_absolute(self.context, position)
-            case Operation():
+            case RunOperationEvent(operation_runner):
                 try:
                     self.context.set_live_waveform_allowed(False)
-                    event.run(self.context)
+                    operation_runner(self.context)
                 finally:
                     self.context.set_live_waveform_allowed(True)
             case _:
@@ -144,11 +143,11 @@ def run_configure(context: Context, config: list[tuple[str, Any]]) -> None:
     station = context.station
     timeout = 10.0
 
-    configure_callbacks = {
-        "laser": configure_laser,
-        "power_meter_1": configure_power_meter,
-        "power_meter_2": configure_power_meter,
-        "power_meter_3": configure_power_meter,
+    configure_callbacks: dict[str, Callable] = {
+        Role.LASER: configure_laser,
+        Role.POWER_METER_1: configure_power_meter,
+        Role.POWER_METER_2: configure_power_meter,
+        Role.POWER_METER_3: configure_power_meter,
     }
 
     for instrument, parameter in config:
@@ -214,9 +213,9 @@ class MetricsWorker:
                 self.poll_scope()
                 self.poll_stage()
                 self.poll_laser()
-                self.poll_power_meter(1)
-                self.poll_power_meter(2)
-                self.poll_power_meter(3)
+                self.poll_power_meter(Role.POWER_METER_1)
+                self.poll_power_meter(Role.POWER_METER_2)
+                self.poll_power_meter(Role.POWER_METER_3)
             finally:
                 self.last_slow_poll = time.monotonic()
 
@@ -269,28 +268,27 @@ class MetricsWorker:
         except Exception:
             logger.exception("failed to poll [laser]")
 
-        self.context.submit_event(metrics)
+        self.context.submit_event(LaserMetricsEvent(Role.LASER, metrics))
 
-    def poll_power_meter(self, index: int) -> None:
+    def poll_power_meter(self, name: str) -> None:
         context = self.context
         station = context.station
-        instrument = f"power_meter_{index}"
-        laser_power = None
-        wavelength = None
-        average_count = None
+        metrics = PowerMeterMetrics()
+
         try:
-            with station[instrument].acquire(timeout=0) as power_meter:
+            with station[name].acquire(timeout=0) as power_meter:
                 if power_meter.is_connected:
-                    laser_power = power_meter.measure_power()
-                    wavelength = power_meter.get_wavelength()
-                    average_count = power_meter.get_average_count()
+                    metrics = PowerMeterMetrics(
+                        power=power_meter.measure_power(),
+                        wavelength=power_meter.get_wavelength(),
+                        average_count=power_meter.get_average_count(),
+                    )
         except LeaseTimeoutError:
             ...
         except Exception:
-            logger.exception("failed to poll [%s]", instrument)
-        context.submit_event(PowerMeterPower(index, laser_power))
-        context.submit_event(PowerMeterWavelength(index, wavelength))
-        context.submit_event(PowerMeterAverageCount(index, average_count))
+            logger.exception("failed to poll [%s]", name)
+
+        context.submit_event(PowerMeterMetricsEvent(name, metrics))
 
 
 class WaveformWorker:

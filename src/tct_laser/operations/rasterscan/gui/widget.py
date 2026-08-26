@@ -9,13 +9,14 @@ from numpy.lib.stride_tricks import sliding_window_view
 from numpy.typing import NDArray
 from PySide6 import QtCore, QtWidgets
 
-from tct_laser.core.events import EnabledChannelsChanged
+from tct_laser.core.events import ChannelsChangedEvent
 from tct_laser.gui.operation import OperationWidget
 
 from ..core.rasterscan import (
     CreateRaster,
     Profile,
-    RasterScanOperation,
+    RasterScanOperationConfig,
+    RasterScanOperationRunner,
     RasterType,
     UpdateRasterValue,
     UpdateXProfile,
@@ -568,7 +569,7 @@ class RasterScanWidget(OperationWidget):
                 self.update_x_profiles(x_profile)
             case UpdateYProfile(y_profile):
                 self.update_y_profiles(y_profile)
-            case EnabledChannelsChanged(channels):
+            case ChannelsChangedEvent(channels):
                 self.set_source_channels(channels)
 
     def create_raster(self, raster_type: RasterType, width: int, height: int) -> None:
@@ -587,8 +588,8 @@ class RasterScanWidget(OperationWidget):
     def update_y_profiles(self, y_profile: Profile) -> None:
         self._y_profile_cache = y_profile
 
-    def config(self) -> RasterScanOperation:
-        return RasterScanOperation(
+    def config(self) -> RasterScanOperationConfig:
+        return RasterScanOperationConfig(
             offset_left=-abs(self.left_spin_box.value()),
             offset_right=abs(self.right_spin_box.value()),
             offset_top=-abs(self.top_spin_box.value()),
@@ -602,7 +603,7 @@ class RasterScanWidget(OperationWidget):
             average_count=self.average_count_spin_box.value(),
         )
 
-    def set_config(self, config: RasterScanOperation) -> None:
+    def set_config(self, config: RasterScanOperationConfig) -> None:
         self.left_spin_box.setValue(-abs(config.offset_left))
         self.right_spin_box.setValue(config.offset_right)
         self.top_spin_box.setValue(-abs(config.offset_top))
@@ -614,6 +615,9 @@ class RasterScanWidget(OperationWidget):
         self.write_csv_check_box.setChecked(config.write_csv)
         self.set_source_channel(config.source_channel)
         self.average_count_spin_box.setValue(config.average_count)
+
+    def create_runner(self) -> RasterScanOperationRunner:
+        return RasterScanOperationRunner(config=self.config())
 
     def read_settings(self, settings: QtCore.QSettings) -> None:
         settings.beginGroup("RasterScan")
@@ -627,7 +631,7 @@ class RasterScanWidget(OperationWidget):
             base = msgspec.to_builtins(self.config())
             base.update(loaded)
 
-            self.set_config(msgspec.convert(base, type=RasterScanOperation))
+            self.set_config(msgspec.convert(base, type=RasterScanOperationConfig))
         except msgspec.DecodeError, msgspec.ValidationError, TypeError:
             # Ignore invalid or incompatible settings.
             pass
