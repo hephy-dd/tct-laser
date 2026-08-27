@@ -17,6 +17,7 @@ class CorvusTTAdapter:
     def __init__(self, resource: Any) -> None:
         self._resource = resource
         self._driver = CorvusTT(resource)
+        self._prec = 6  # temporary precision fix
 
     def identify(self) -> str:
         return self._driver.identify()
@@ -33,10 +34,16 @@ class CorvusTTAdapter:
         return self._driver.is_moving
 
     def move_relative(self, offset: Vector3) -> None:
-        self._driver.move_relative((offset.x, offset.y, offset.z))
+        x, y, z = offset.to_tuple()
+        self._resource.write(
+            f"{x:.{self._prec}f} {y:.{self._prec}f} {z:.{self._prec}f} rmove"
+        )
 
     def move_absolute(self, position: Vector3) -> None:
-        self._driver.move_absolute((position.x, position.y, position.z))
+        x, y, z = position.to_tuple()
+        self._resource.write(
+            f"{x:.{self._prec}f} {y:.{self._prec}f} {z:.{self._prec}f} move"
+        )
 
 
 class CorvusControllerAdapter:
