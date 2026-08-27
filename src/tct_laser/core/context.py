@@ -18,7 +18,7 @@ from .events import (
     WaveformEvent,
 )
 from .station import Station
-from .utils import Waveform
+from .waveform import Waveform
 
 __all__ = ["ContextState", "MainContext", "WorkerContext", "create_contexts"]
 

@@ -1,6 +1,7 @@
 from typing import Protocol, runtime_checkable
 
-from .utils import Vector3, Waveform
+from .geometry import Vector3
+from .waveform import Waveform
 
 __all__ = [
     "LaserAdapter",

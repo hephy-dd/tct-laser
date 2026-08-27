@@ -8,6 +8,7 @@ from typing import Any
 import msgspec
 from PySide6 import QtCore, QtGui, QtStateMachine, QtWidgets
 
+from ..core.actors.instrument import ConnectionState
 from ..core.context import ContextState, MainContext, WorkerContext
 from ..core.events import (
     ChannelsChangedEvent,
@@ -23,9 +24,9 @@ from ..core.events import (
     StatusProgressEvent,
     WaveformEvent,
 )
+from ..core.geometry import Vector3
 from ..core.resource import ResourceConfig
 from ..core.service import BackgroundService
-from ..core.utils import Vector3
 from ..core.worker import Worker
 from ..operations import RasterScanWidget, ZScanWidget
 from . import config
@@ -45,8 +46,7 @@ class MainWindow(QtWidgets.QMainWindow):
     operation_finished = QtCore.Signal()
 
     configure_triggered = QtCore.Signal()
-    move_relative_triggered = QtCore.Signal()
-    move_absolute_triggered = QtCore.Signal()
+    move_triggered = QtCore.Signal()
 
     def __init__(
         self, state: ContextState, parent: QtWidgets.QWidget | None = None
@@ -56,6 +56,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setMinimumSize(640, 480)
 
         self._context = MainContext(state)
+        self._configure_request = None
+        self._move_request = None
 
         self._create_actions()
         self._create_menus()
@@ -88,7 +90,7 @@ class MainWindow(QtWidgets.QMainWindow):
         def update_waveform(channel: str) -> None:
             waveform = self._waveform_service.get_waveform(channel)
             if waveform is not None:
-                self._dashboard_widget.scope_group_box.set_waveform(waveform)
+                self._dashboard_widget.set_scope_waveform(waveform)
 
         self._waveform_service.waveform_changed.connect(update_waveform)
 
@@ -155,20 +157,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self._dashboard_widget.output_path_changed.connect(
             lambda output_path: self._context.set_output_path(output_path)
         )
-        self._dashboard_widget.configure_triggered.connect(self.configure_triggered)
-        self._dashboard_widget.move_relative_triggered.connect(
-            self.move_relative_triggered
-        )
-        self._dashboard_widget.move_absolute_triggered.connect(
-            self.move_absolute_triggered
-        )
+        self._dashboard_widget.configure_triggered.connect(self.on_configure)
+        self._dashboard_widget.move_relative_triggered.connect(self.on_move_relative)
+        self._dashboard_widget.move_absolute_triggered.connect(self.on_move_absolute)
 
         # Scope
 
-        self._dashboard_widget.scope_group_box.preview_toggled.connect(
-            self._on_toggle_scope_live
-        )
-        self._dashboard_widget.scope_group_box.channels_changed.connect(
+        self._dashboard_widget.scope_preview_toggled.connect(self._on_toggle_scope_live)
+        self._dashboard_widget.scope_channels_changed.connect(
             self._on_scope_channels_changed
         )
 
@@ -210,11 +206,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._configure_state = QtStateMachine.QState()
         self._configure_state.entered.connect(self._on_enter_configure)
 
-        self._move_relative_state = QtStateMachine.QState()
-        self._move_relative_state.entered.connect(self._on_enter_move_relative)
-
-        self._move_absolute_state = QtStateMachine.QState()
-        self._move_absolute_state.entered.connect(self._on_enter_move_absolute)
+        self._move_state = QtStateMachine.QState()
+        self._move_state.entered.connect(self._on_enter_move)
 
         self._operation_state = QtStateMachine.QState()
         self._operation_state.entered.connect(self._on_enter_operation)
@@ -223,29 +216,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self._abort_state.entered.connect(self._on_enter_abort)
 
         self._idle_state.addTransition(self.configure_triggered, self._configure_state)
-        self._idle_state.addTransition(
-            self.move_relative_triggered, self._move_relative_state
-        )
-        self._idle_state.addTransition(
-            self.move_absolute_triggered, self._move_absolute_state
-        )
+        self._idle_state.addTransition(self.move_triggered, self._move_state)
         self._idle_state.addTransition(self.operation_started, self._operation_state)
 
         self._configure_state.addTransition(self.operation_finished, self._idle_state)
 
-        self._move_relative_state.addTransition(
-            self.operation_finished, self._idle_state
-        )
-        self._move_relative_state.addTransition(
-            self._abort_action.triggered, self._abort_state
-        )
+        self._move_state.addTransition(self.operation_finished, self._idle_state)
 
-        self._move_absolute_state.addTransition(
-            self.operation_finished, self._idle_state
-        )
-        self._move_absolute_state.addTransition(
-            self._abort_action.triggered, self._abort_state
-        )
+        self._move_state.addTransition(self._abort_action.triggered, self._abort_state)
 
         self._operation_state.addTransition(self.operation_finished, self._idle_state)
         self._operation_state.addTransition(
@@ -257,8 +235,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._state_machine = QtStateMachine.QStateMachine(self)
         self._state_machine.addState(self._idle_state)
         self._state_machine.addState(self._configure_state)
-        self._state_machine.addState(self._move_relative_state)
-        self._state_machine.addState(self._move_absolute_state)
+        self._state_machine.addState(self._move_state)
         self._state_machine.addState(self._operation_state)
         self._state_machine.addState(self._abort_state)
         self._state_machine.setInitialState(self._idle_state)
@@ -352,14 +329,12 @@ class MainWindow(QtWidgets.QMainWindow):
             actor.set_resource_config(msgspec.convert(config_data, ResourceConfig))
 
     def save_connections(self) -> str:
-        connections = set()
-        for (
-            instrument,
-            button,
-        ) in self._dashboard_widget.station_group_box._instrument_buttons.items():
-            if button.isChecked():
-                connections.add(instrument)
-        return json.dumps(list(connections))
+        connections = [
+            instrument
+            for instrument, state in self._dashboard_widget.instrument_connection_states().items()
+            if state is ConnectionState.CONNECTED
+        ]
+        return json.dumps(connections)
 
     def restore_connections(self, connections: str) -> None:
         try:
@@ -370,15 +345,15 @@ class MainWindow(QtWidgets.QMainWindow):
             self._context.connect(instrument)
 
     def save_scope_channels(self) -> str:
-        scope_channels = self._dashboard_widget.scope_group_box.active_channels()
-        return json.dumps(list(scope_channels))
+        channels = self._dashboard_widget.scope_enabled_channels()
+        return json.dumps(channels)
 
     def restore_scope_channels(self, data: str) -> None:
         try:
-            scope_channels = list(json.loads(data))
+            channels = list(json.loads(data))
         except Exception:
-            scope_channels = []
-        self._dashboard_widget.scope_group_box.set_active_channels(scope_channels)
+            channels = []
+        self._dashboard_widget.set_scope_enabled_channels(channels)
 
     def save_stage_positions(self) -> str:
         stage_positions = self._dashboard_widget.stage_positions()
@@ -405,6 +380,20 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_update_timeout(self) -> None:
         self.update_instrument_state()
         self.process_pending_events(max_count=1024)
+
+    @QtCore.Slot(object)
+    def on_configure(self, name: str, data: Any) -> None:
+        self._configure_request = ConfigureEvent([(name, data)])
+
+    @QtCore.Slot(object)
+    def on_move_relative(self, offset: Vector3) -> None:
+        self._move_request = MoveRelativeEvent(offset)
+        self.move_triggered.emit()
+
+    @QtCore.Slot(object)
+    def on_move_absolute(self, position: Vector3) -> None:
+        self._move_request = MoveAbsoluteEvent(position)
+        self.move_triggered.emit()
 
     def update_instrument_state(self) -> None:
         for name, actor in self._context.station.actors().items():
@@ -440,7 +429,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.operation_finished.emit()
 
             case PositionChangedEvent(position):
-                self._dashboard_widget.set_position(position)
+                self._dashboard_widget.set_stage_position(position)
 
             case LaserMetricsEvent(_, metrics):
                 self._dashboard_widget.set_laser_metrics(metrics)
@@ -448,7 +437,8 @@ class MainWindow(QtWidgets.QMainWindow):
             case PowerMeterMetricsEvent(name, metrics):
                 self._dashboard_widget.set_power_meter_metrics(name, metrics)
 
-        self._dashboard_widget.handle_event(event)
+        for operation_widget in self._dashboard_widget.operation_widgets():
+            operation_widget.handle_event(event)
 
     @QtCore.Slot()
     def _on_enter_idle(self) -> None:
@@ -463,27 +453,28 @@ class MainWindow(QtWidgets.QMainWindow):
         logger.info("entered [configure]")
         self.set_inputs_enabled(False)
         self.set_abort_enabled(False)
-        data = self._dashboard_widget.flush_configure_cache()
-        self._context.submit_event(ConfigureEvent(data))
+        request = self._configure_request
+        self._configure_request = None
+        match request:
+            case ConfigureEvent():
+                self._context.submit_event(request)
+            case _:
+                self.operation_finished.emit()
 
     @QtCore.Slot()
-    def _on_enter_move_relative(self) -> None:
-        logger.info("entered [move relative]")
+    def _on_enter_move(self) -> None:
+        logger.info("entered [move]")
         self.set_inputs_enabled(False)
         self.set_abort_enabled(False)
-        pos = self._dashboard_widget.flush_move_relative_cache()
-        self._context.submit_event(MoveRelativeEvent(Vector3(pos.x, pos.y, pos.z)))
-
-    @QtCore.Slot()
-    def _on_enter_move_absolute(self) -> None:
-        logger.info("entered [move absolute]")
-        self.set_inputs_enabled(False)
-        self.set_abort_enabled(False)
-        pos = self._dashboard_widget.flush_move_absolute_cache()
-        if pos is None:
-            self.operation_finished.emit()
-        else:
-            self._context.submit_event(MoveAbsoluteEvent(Vector3(pos.x, pos.y, pos.z)))
+        request = self._move_request
+        self._move_request = None
+        match request:
+            case MoveRelativeEvent():
+                self._context.submit_event(request)
+            case MoveAbsoluteEvent():
+                self._context.submit_event(request)
+            case _:
+                self.operation_finished.emit()
 
     @QtCore.Slot()
     def _on_enter_operation(self) -> None:

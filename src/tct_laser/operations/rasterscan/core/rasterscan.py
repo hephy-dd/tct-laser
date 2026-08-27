@@ -11,8 +11,9 @@ from numpy.typing import NDArray
 
 from tct_laser.core.algorithms import xy_range
 from tct_laser.core.context import WorkerContext as Context
+from tct_laser.core.geometry import Vector3
 from tct_laser.core.session import Session
-from tct_laser.core.utils import Vector3, pulse_area_window
+from tct_laser.core.utils import pulse_area_window
 
 from .plots import PlotWriter
 from .writer import RasterScanFileWriter

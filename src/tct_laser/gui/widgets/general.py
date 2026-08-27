@@ -14,11 +14,11 @@ class GeneralGroupBox(QtWidgets.QGroupBox):
 
         self._sample_name_line_edit = QtWidgets.QLineEdit(self)
         self._sample_name_line_edit.setToolTip("Name of current sample")
-        self._sample_name_line_edit.textChanged.connect(self.sample_name_changed.emit)
+        self._sample_name_line_edit.textChanged.connect(self.sample_name_changed)
 
         self._output_path_line_edit = QtWidgets.QLineEdit(self)
         self._output_path_line_edit.setStatusTip("Base output path")
-        self._output_path_line_edit.textChanged.connect(self.output_path_changed.emit)
+        self._output_path_line_edit.textChanged.connect(self.output_path_changed)
 
         self._output_path_button = QtWidgets.QToolButton(self)
         self._output_path_button.setText("...")

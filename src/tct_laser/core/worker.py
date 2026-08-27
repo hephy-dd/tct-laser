@@ -4,7 +4,7 @@ from collections.abc import Callable
 from threading import Event
 from typing import Any
 
-from tct_laser.core.utils import Vector3
+from tct_laser.core.geometry import Vector3
 
 from .actors import LaserActor, PowerMeterActor, ScopeActor
 from .context import RunOperationEvent

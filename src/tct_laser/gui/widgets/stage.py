@@ -1,14 +1,14 @@
 import msgspec
 from PySide6 import QtCore, QtWidgets
 
-from tct_laser.core.utils import Vector3
+from tct_laser.core.geometry import Vector3
 
 __all__ = ["StageGroupBox"]
 
 
 class StageGroupBox(QtWidgets.QGroupBox):
-    move_relative = QtCore.Signal(float, float, float)
-    move_absolute = QtCore.Signal(float, float, float)
+    move_relative_triggered = QtCore.Signal(object)
+    move_absolute_triggered = QtCore.Signal(object)
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -16,11 +16,17 @@ class StageGroupBox(QtWidgets.QGroupBox):
         self.setTitle("Stage")
 
         self._control_widget = ControlWidget(self)
-        self._control_widget.move_relative.connect(self.move_relative.emit)
-        self._control_widget.move_absolute.connect(self.move_absolute.emit)
+        self._control_widget.move_relative_triggered.connect(
+            self.move_relative_triggered
+        )
+        self._control_widget.move_absolute_triggered.connect(
+            self.move_absolute_triggered
+        )
 
         self._positions_widget = PositionsWidget(self)
-        self._positions_widget.move_absolute.connect(self.move_absolute.emit)
+        self._positions_widget.move_absolute_triggered.connect(
+            self.move_absolute_triggered
+        )
 
         self._tab_widget = QtWidgets.QTabWidget(self)
         self._tab_widget.addTab(self._control_widget, "Control")
@@ -29,9 +35,9 @@ class StageGroupBox(QtWidgets.QGroupBox):
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(self._tab_widget)
 
-    def set_position(self, x: float, y: float, z: float) -> None:
-        self._control_widget.set_position(x, y, z)
-        self._positions_widget.set_current_position(x, y, z)
+    def set_position(self, position: Vector3) -> None:
+        self._control_widget.set_position(position)
+        self._positions_widget.set_current_position(position)
 
     def clear_position(self) -> None:
         self._control_widget.clear_position()
@@ -51,8 +57,8 @@ class StageGroupBox(QtWidgets.QGroupBox):
 
 
 class ControlWidget(QtWidgets.QWidget):
-    move_relative = QtCore.Signal(float, float, float)
-    move_absolute = QtCore.Signal(float, float, float)
+    move_relative_triggered = QtCore.Signal(object)
+    move_absolute_triggered = QtCore.Signal(object)
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -81,37 +87,49 @@ class ControlWidget(QtWidgets.QWidget):
         self._x_sub_button = QtWidgets.QPushButton("-", self)
         self._x_sub_button.setMaximumWidth(32)
         self._x_sub_button.clicked.connect(
-            lambda: self.move_relative.emit(-abs(self._x_step_spin_box.value()), 0, 0)
+            lambda: self.move_relative_triggered.emit(
+                Vector3(-abs(self._x_step_spin_box.value()), 0, 0)
+            )
         )
 
         self._x_add_button = QtWidgets.QPushButton("+", self)
         self._x_add_button.setMaximumWidth(32)
         self._x_add_button.clicked.connect(
-            lambda: self.move_relative.emit(+abs(self._x_step_spin_box.value()), 0, 0)
+            lambda: self.move_relative_triggered.emit(
+                Vector3(+abs(self._x_step_spin_box.value()), 0, 0)
+            )
         )
 
         self._y_sub_button = QtWidgets.QPushButton("-", self)
         self._y_sub_button.setMaximumWidth(32)
         self._y_sub_button.clicked.connect(
-            lambda: self.move_relative.emit(0, -abs(self._y_step_spin_box.value()), 0)
+            lambda: self.move_relative_triggered.emit(
+                Vector3(0, -abs(self._y_step_spin_box.value()), 0)
+            )
         )
 
         self._y_add_button = QtWidgets.QPushButton("+", self)
         self._y_add_button.setMaximumWidth(32)
         self._y_add_button.clicked.connect(
-            lambda: self.move_relative.emit(0, +abs(self._y_step_spin_box.value()), 0)
+            lambda: self.move_relative_triggered.emit(
+                Vector3(0, +abs(self._y_step_spin_box.value()), 0)
+            )
         )
 
         self._z_sub_button = QtWidgets.QPushButton("-", self)
         self._z_sub_button.setMaximumWidth(32)
         self._z_sub_button.clicked.connect(
-            lambda: self.move_relative.emit(0, 0, -abs(self._z_step_spin_box.value()))
+            lambda: self.move_relative_triggered.emit(
+                Vector3(0, 0, -abs(self._z_step_spin_box.value()))
+            )
         )
 
         self._z_add_button = QtWidgets.QPushButton("+", self)
         self._z_add_button.setMaximumWidth(32)
         self._z_add_button.clicked.connect(
-            lambda: self.move_relative.emit(0, 0, +abs(self._z_step_spin_box.value()))
+            lambda: self.move_relative_triggered.emit(
+                Vector3(0, 0, +abs(self._z_step_spin_box.value()))
+            )
         )
 
         layout = QtWidgets.QGridLayout(self)
@@ -155,10 +173,10 @@ class ControlWidget(QtWidgets.QWidget):
         spin_box.setSuffix(f" {self._unit}")
         return spin_box
 
-    def set_position(self, x: float, y: float, z: float) -> None:
-        self._x_pos_line_edit.setText(f"{x:.{self._prec}f} {self._unit}")
-        self._y_pos_line_edit.setText(f"{y:.{self._prec}f} {self._unit}")
-        self._z_pos_line_edit.setText(f"{z:.{self._prec}f} {self._unit}")
+    def set_position(self, position: Vector3) -> None:
+        self._x_pos_line_edit.setText(f"{position.x:.{self._prec}f} {self._unit}")
+        self._y_pos_line_edit.setText(f"{position.y:.{self._prec}f} {self._unit}")
+        self._z_pos_line_edit.setText(f"{position.z:.{self._prec}f} {self._unit}")
 
     def clear_position(self) -> None:
         self._x_pos_line_edit.setText("loading...")
@@ -189,7 +207,7 @@ class Position(msgspec.Struct):
 
 
 class PositionsWidget(QtWidgets.QWidget):
-    move_absolute = QtCore.Signal(float, float, float)
+    move_absolute_triggered = QtCore.Signal(object)
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
@@ -244,8 +262,8 @@ class PositionsWidget(QtWidgets.QWidget):
         self._add_button.setEnabled(enabled)
         self._update_action_states()
 
-    def set_current_position(self, x: float, y: float, z: float) -> None:
-        self._current_position = Vector3(x, y, z)
+    def set_current_position(self, position: Vector3) -> None:
+        self._current_position = position.copy()
 
     def current_position_item(self) -> QtWidgets.QTreeWidgetItem | None:
         return self._positions_tree_widget.currentItem()
@@ -323,7 +341,7 @@ class PositionsWidget(QtWidgets.QWidget):
             return
 
         position = self._position_from_item(item)
-        self.move_absolute.emit(position.x, position.y, position.z)
+        self.move_absolute_triggered.emit(Vector3(position.x, position.y, position.z))
 
     def positions(self) -> list[Position]:
         positions = []

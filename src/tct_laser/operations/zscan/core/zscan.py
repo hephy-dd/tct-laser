@@ -9,8 +9,9 @@ from comet.estimate import Estimate
 from numpy.typing import NDArray
 
 from tct_laser.core.context import WorkerContext as Context
+from tct_laser.core.geometry import Vector3
 from tct_laser.core.session import Session
-from tct_laser.core.utils import Vector3, Waveform
+from tct_laser.core.waveform import Waveform
 
 from .utils import focus_slope, path_distance, vector_length
 

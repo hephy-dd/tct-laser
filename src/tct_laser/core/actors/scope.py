@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from ..adapter import ScopeAdapter
-from ..utils import Waveform
+from ..waveform import Waveform
 from .instrument import InstrumentActor
 
 __all__ = ["ScopeActor"]

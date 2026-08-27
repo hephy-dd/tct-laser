@@ -4,7 +4,7 @@ from comet.driver.hephy.corvuscontroller import CorvusController
 from comet.driver.itk.corvustt import CorvusTT
 from comet.driver.mbi.tablecontrol import TableControl
 
-from ..utils import Vector3
+from ..geometry import Vector3
 
 __all__ = [
     "CorvusControllerAdapter",

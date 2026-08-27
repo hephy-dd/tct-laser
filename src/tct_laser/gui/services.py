@@ -1,6 +1,6 @@
 from PySide6 import QtCore
 
-from tct_laser.core.utils import Waveform
+from tct_laser.core.waveform import Waveform
 
 __all__ = ["WaveformService"]
 

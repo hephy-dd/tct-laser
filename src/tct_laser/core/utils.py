@@ -1,13 +1,10 @@
 import math
 from datetime import datetime
 
-import msgspec
 import numpy as np
 from numpy.typing import NDArray
 
 __all__ = [
-    "Vector3",
-    "Waveform",
     "pulse_area_window",
     "safe_iso_timestamp",
     "si_format",
@@ -71,21 +68,3 @@ def pulse_area_window(
 
     i0, i1 = np.where(mask)[0][[0, -1]]
     return np.trapezoid(y_corr[i0 : i1 + 1], x=t[i0 : i1 + 1]).item()
-
-
-class Vector3(msgspec.Struct, frozen=True):
-    x: float
-    y: float
-    z: float
-
-    def __iter__(self):
-        return iter((self.x, self.y, self.z))
-
-    def to_tuple(self) -> tuple[float, float, float]:
-        return self.x, self.y, self.z
-
-
-class Waveform(msgspec.Struct, frozen=True):
-    channel: str
-    x: NDArray[np.float64]
-    y: NDArray[np.float64]

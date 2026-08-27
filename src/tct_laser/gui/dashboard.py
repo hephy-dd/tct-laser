@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from typing import Any
+from functools import partial
 
 from PySide6 import QtCore, QtWidgets
 
@@ -13,8 +13,9 @@ from ..core.events import (
     SetPowerMeterAverageCount,
     SetPowerMeterWavelength,
 )
+from ..core.geometry import Vector3
 from ..core.station import Role
-from ..core.utils import Vector3
+from ..core.waveform import Waveform
 from .operation import OperationWidget
 from .widgets.general import GeneralGroupBox
 from .widgets.labels import ErrorLabel
@@ -30,94 +31,78 @@ __all__ = ["DashboardWidget"]
 class DashboardWidget(QtWidgets.QWidget):
     connect_instrument = QtCore.Signal(str)
     disconnect_instrument = QtCore.Signal(str)
-    configure_triggered = QtCore.Signal()
-    move_relative_triggered = QtCore.Signal()
-    move_absolute_triggered = QtCore.Signal()
+    configure_triggered = QtCore.Signal(str, object)
+    move_relative_triggered = QtCore.Signal(object)
+    move_absolute_triggered = QtCore.Signal(object)
+    scope_preview_toggled = QtCore.Signal(bool)
+    scope_channels_changed = QtCore.Signal(list)
     sample_name_changed = QtCore.Signal(str)
     output_path_changed = QtCore.Signal(str)
 
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self._configure_cache: list[tuple[str, Any]] = []
-        self._move_relative_cache: Vector3 | None = None
-        self._move_absolute_cache: Vector3 | None = None
-
         self._error_label = ErrorLabel(self)
         self._error_label.hide()
 
         # Laser
 
-        self.laser_group_box = LaserGroupBox(self)
-        self.laser_group_box.output_changed.connect(self.laser_output_changed)
-        self.laser_group_box.frequency_changed.connect(self.laser_frequency_changed)
-        self.laser_group_box.tune_changed.connect(self.laser_tune_changed)
+        self._laser_group_box = LaserGroupBox(self)
+        self._laser_group_box.output_changed.connect(self.on_laser_output_changed)
+        self._laser_group_box.frequency_changed.connect(self.on_laser_frequency_changed)
+        self._laser_group_box.tune_changed.connect(self.on_laser_tune_changed)
 
         # Stage
 
-        self.stage_group_box = StageGroupBox(self)
-        self.stage_group_box.clear_position()
-        self.stage_group_box.move_relative.connect(self.move_relative)
-        self.stage_group_box.move_absolute.connect(self.move_absolute)
+        self._stage_group_box = StageGroupBox(self)
+        self._stage_group_box.clear_position()
+        self._stage_group_box.move_relative_triggered.connect(self.on_move_relative)
+        self._stage_group_box.move_absolute_triggered.connect(self.on_move_absolute)
 
-        self.power_meter_group_box: dict[str, PowerMeterGroupBox] = {}
+        # Power Meters
 
-        # Power Meter 1
+        self._power_meter_group_boxes: dict[str, PowerMeterGroupBox] = {}
 
-        self.power_meter_group_box[Role.POWER_METER_1] = PowerMeterGroupBox(self)
-        self.power_meter_group_box[Role.POWER_METER_1].setTitle("Power Meter 1")
-        self.power_meter_group_box[Role.POWER_METER_1].wavelength_changed.connect(
-            self.power_wavelength_changed
-        )
-        self.power_meter_group_box[Role.POWER_METER_1].average_count_changed.connect(
-            self.power_average_count_changed
-        )
+        def add_power_meter_group_box(name: str, title: str) -> None:
+            power_meter_group_box = PowerMeterGroupBox(self)
+            power_meter_group_box.setTitle(title)
+            power_meter_group_box.wavelength_changed.connect(
+                partial(self.on_power_wavelength_changed, name)
+            )
+            power_meter_group_box.average_count_changed.connect(
+                partial(self.on_power_average_count_changed, name)
+            )
+            self._power_meter_group_boxes[name] = power_meter_group_box
 
-        # Power Meter 2
-
-        self.power_meter_group_box[Role.POWER_METER_2] = PowerMeterGroupBox(self)
-        self.power_meter_group_box[Role.POWER_METER_2].setTitle("Power Meter 2")
-        self.power_meter_group_box[Role.POWER_METER_2].wavelength_changed.connect(
-            self.power_wavelength_2_changed
-        )
-        self.power_meter_group_box[Role.POWER_METER_2].average_count_changed.connect(
-            self.power_average_count_2_changed
-        )
-
-        # Power Meter 3
-
-        self.power_meter_group_box[Role.POWER_METER_3] = PowerMeterGroupBox(self)
-        self.power_meter_group_box[Role.POWER_METER_3].setTitle("Power Meter 3")
-        self.power_meter_group_box[Role.POWER_METER_3].wavelength_changed.connect(
-            self.power_wavelength_3_changed
-        )
-        self.power_meter_group_box[Role.POWER_METER_3].average_count_changed.connect(
-            self.power_average_count_3_changed
-        )
+        add_power_meter_group_box(Role.POWER_METER_1, "Power Meter 1")
+        add_power_meter_group_box(Role.POWER_METER_2, "Power Meter 2")
+        add_power_meter_group_box(Role.POWER_METER_3, "Power Meter 3")
 
         # Scope
 
-        self.scope_group_box = ScopeGroupBox(self)
-        # self.scope_group_box.preview_toggled.connect(self.toggle_scope_live)
-        # self.scope_group_box.channel_changed.connect(self.scope_channel_changed)
+        self._scope_group_box = ScopeGroupBox(self)
+        self._scope_group_box.preview_toggled.connect(self.scope_preview_toggled)
+        self._scope_group_box.channels_changed.connect(self.scope_channels_changed)
 
         # General
 
-        self.general_group_box = GeneralGroupBox(self)
-        self.general_group_box.sample_name_changed.connect(self.sample_name_changed)
-        self.general_group_box.output_path_changed.connect(self.output_path_changed)
+        self._general_group_box = GeneralGroupBox(self)
+        self._general_group_box.sample_name_changed.connect(self.sample_name_changed)
+        self._general_group_box.output_path_changed.connect(self.output_path_changed)
 
         # Station
 
-        self.station_group_box = StationGroupBox(self)
-        self.station_group_box.add_instrument(Role.SCOPE, "Scope")
-        self.station_group_box.add_instrument(Role.LASER, "Laser")
-        self.station_group_box.add_instrument(Role.STAGE, "Stage")
-        self.station_group_box.add_instrument(Role.POWER_METER_1, "PM1")
-        self.station_group_box.add_instrument(Role.POWER_METER_2, "PM2")
-        self.station_group_box.add_instrument(Role.POWER_METER_3, "PM3")
-        self.station_group_box.connect_instrument.connect(self.connect_instrument)
-        self.station_group_box.disconnect_instrument.connect(self.disconnect_instrument)
+        self._station_group_box = StationGroupBox(self)
+        self._station_group_box.add_instrument(Role.SCOPE, "Scope")
+        self._station_group_box.add_instrument(Role.LASER, "Laser")
+        self._station_group_box.add_instrument(Role.STAGE, "Stage")
+        self._station_group_box.add_instrument(Role.POWER_METER_1, "PM1")
+        self._station_group_box.add_instrument(Role.POWER_METER_2, "PM2")
+        self._station_group_box.add_instrument(Role.POWER_METER_3, "PM3")
+        self._station_group_box.connect_instrument.connect(self.connect_instrument)
+        self._station_group_box.disconnect_instrument.connect(
+            self.disconnect_instrument
+        )
 
         # Operations
 
@@ -127,12 +112,11 @@ class DashboardWidget(QtWidgets.QWidget):
         # Misc
 
         top_layout = QtWidgets.QHBoxLayout()
-        top_layout.addWidget(self.laser_group_box)
-        top_layout.addWidget(self.stage_group_box)
-        top_layout.addWidget(self.power_meter_group_box[Role.POWER_METER_1])
-        top_layout.addWidget(self.power_meter_group_box[Role.POWER_METER_2])
-        top_layout.addWidget(self.power_meter_group_box[Role.POWER_METER_3])
-        top_layout.addWidget(self.station_group_box)
+        top_layout.addWidget(self._laser_group_box)
+        top_layout.addWidget(self._stage_group_box)
+        for power_meter_group_box in self._power_meter_group_boxes.values():
+            top_layout.addWidget(power_meter_group_box)
+        top_layout.addWidget(self._station_group_box)
         top_layout.setStretch(0, 2)
         top_layout.setStretch(1, 4)
         top_layout.setStretch(2, 1)
@@ -140,8 +124,8 @@ class DashboardWidget(QtWidgets.QWidget):
         top_layout.setStretch(4, 1)
 
         left_layout = QtWidgets.QVBoxLayout()
-        left_layout.addWidget(self.scope_group_box)
-        left_layout.addWidget(self.general_group_box)
+        left_layout.addWidget(self._scope_group_box)
+        left_layout.addWidget(self._general_group_box)
 
         bottom_layout = QtWidgets.QHBoxLayout()
         bottom_layout.addLayout(left_layout)
@@ -169,16 +153,15 @@ class DashboardWidget(QtWidgets.QWidget):
         self._error_label.hide()
 
     def set_inputs_enabled(self, enabled: bool) -> None:
-        self.scope_group_box.set_inputs_enabled(enabled)
-        self.laser_group_box.set_inputs_enabled(enabled)
-        self.stage_group_box.set_inputs_enabled(enabled)
-        self.power_meter_group_box[Role.POWER_METER_1].set_inputs_enabled(enabled)
-        self.power_meter_group_box[Role.POWER_METER_2].set_inputs_enabled(enabled)
-        self.power_meter_group_box[Role.POWER_METER_3].set_inputs_enabled(enabled)
+        self._scope_group_box.set_inputs_enabled(enabled)
+        self._laser_group_box.set_inputs_enabled(enabled)
+        self._stage_group_box.set_inputs_enabled(enabled)
+        for power_meter_group_box in self._power_meter_group_boxes.values():
+            power_meter_group_box.set_inputs_enabled(enabled)
         for operation_widget in self._operation_widgets:
             operation_widget.set_inputs_enabled(enabled)
-        self.station_group_box.set_inputs_enabled(enabled)
-        self.general_group_box.set_inputs_enabled(enabled)
+        self._station_group_box.set_inputs_enabled(enabled)
+        self._general_group_box.set_inputs_enabled(enabled)
 
     def set_abort_enabled(self, enabled: bool) -> None:
         for operation_widget in self._operation_widgets:
@@ -191,42 +174,35 @@ class DashboardWidget(QtWidgets.QWidget):
                 self._operations_tab_widget.setCurrentIndex(index)
                 break
 
-    def flush_configure_cache(self) -> list[Any]:
-        configure_cache = self._configure_cache
-        self._configure_cache = []
-        return configure_cache
-
-    def flush_move_relative_cache(self) -> Vector3:
-        move_relative_cache = self._move_relative_cache
-        self._move_relative_cache = None
-        if move_relative_cache is None:
-            return Vector3(0, 0, 0)
-        return move_relative_cache
-
-    def flush_move_absolute_cache(self) -> Vector3 | None:
-        move_absolute_cache = self._move_absolute_cache
-        self._move_absolute_cache = None
-        return move_absolute_cache
-
     def set_instrument_state(self, name: str, state: ConnectionState) -> None:
-        self.station_group_box.set_instrument_state(name, state)
+        self._station_group_box.set_instrument_state(name, state)
 
         enabled = state == ConnectionState.CONNECTED
         match name:
             case Role.SCOPE:
-                self.scope_group_box.setEnabled(enabled)
+                self._scope_group_box.setEnabled(enabled)
             case Role.LASER:
-                self.laser_group_box.setEnabled(enabled)
+                self._laser_group_box.setEnabled(enabled)
             case Role.STAGE:
-                self.stage_group_box.setEnabled(enabled)
+                self._stage_group_box.setEnabled(enabled)
                 if state != ConnectionState.CONNECTED:
                     self.clear_position()
             case Role.POWER_METER_1:
-                self.power_meter_group_box[Role.POWER_METER_1].setEnabled(enabled)
+                self._power_meter_group_boxes[name].setEnabled(enabled)
             case Role.POWER_METER_2:
-                self.power_meter_group_box[Role.POWER_METER_2].setEnabled(enabled)
+                self._power_meter_group_boxes[name].setEnabled(enabled)
             case Role.POWER_METER_3:
-                self.power_meter_group_box[Role.POWER_METER_3].setEnabled(enabled)
+                self._power_meter_group_boxes[name].setEnabled(enabled)
+
+    def instrument_connection_states(self) -> dict[str, ConnectionState]:
+        return {
+            instrument: (
+                ConnectionState.CONNECTED
+                if button.isChecked()
+                else ConnectionState.DISCONNECTED
+            )
+            for instrument, button in self._station_group_box._instrument_buttons.items()
+        }
 
     def add_operation(self, operation: OperationWidget) -> None:
         self._operations_tab_widget.addTab(operation, operation.windowTitle())
@@ -236,30 +212,39 @@ class DashboardWidget(QtWidgets.QWidget):
         return list(self._operation_widgets)
 
     def set_scope_channels(self, channels: Iterable[str]):
-        self.scope_group_box.set_channels(channels)
+        self._scope_group_box.set_channels(channels)
+
+    def scope_enabled_channels(self) -> list[str]:
+        return self._scope_group_box.active_channels()
+
+    def set_scope_enabled_channels(self, channels: list[str]) -> None:
+        self._scope_group_box.set_active_channels(channels)
+
+    def set_scope_waveform(self, waveform: Waveform) -> None:
+        self._scope_group_box.set_waveform(waveform)
 
     def set_stage_positions(self, positions: Iterable[Position]) -> None:
-        self.stage_group_box._positions_widget.clear_positions()
+        self._stage_group_box._positions_widget.clear_positions()
         for position in positions:
-            self.stage_group_box._positions_widget.append_position(position)
+            self._stage_group_box._positions_widget.append_position(position)
 
     def stage_positions(self) -> list[Position]:
-        return self.stage_group_box._positions_widget.positions()
+        return self._stage_group_box._positions_widget.positions()
 
     def set_laser_output(self, value: bool) -> None:
-        self.laser_group_box.set_output(value)
+        self._laser_group_box.set_output(value)
 
-    def set_position(self, position: Vector3) -> None:
-        self.stage_group_box.set_position(position.x, position.y, position.z)
+    def set_stage_position(self, position: Vector3) -> None:
+        self._stage_group_box.set_position(position)
 
     def clear_position(self) -> None:
-        self.stage_group_box.clear_position()
+        self._stage_group_box.clear_position()
 
     def set_laser_metrics(self, metrics: LaserMetrics) -> None:
-        self.laser_group_box.set_metrics(metrics)
+        self._laser_group_box.set_metrics(metrics)
 
     def set_power_meter_metrics(self, name: str, metrics: PowerMeterMetrics) -> None:
-        power_meter_group_box = self.power_meter_group_box[name]
+        power_meter_group_box = self._power_meter_group_boxes[name]
         if metrics.power is not None:
             power_meter_group_box.set_power(metrics.power)
         if metrics.wavelength is not None:
@@ -268,90 +253,49 @@ class DashboardWidget(QtWidgets.QWidget):
             power_meter_group_box.update_average_count(metrics.average_count)
 
     def set_power_meter_wavelength(self, name: str, wavelength: int | None) -> None:
-        self.power_meter_group_box[name].update_wavelength(wavelength)
+        self._power_meter_group_boxes[name].update_wavelength(wavelength)
 
     def set_power_meter_average_count(
         self, name: str, average_count: int | None
     ) -> None:
-        self.power_meter_group_box[name].update_average_count(average_count)
+        self._power_meter_group_boxes[name].update_average_count(average_count)
 
     @QtCore.Slot(bool)
-    def laser_output_changed(self, enabled: bool) -> None:
-        self._configure_cache.append((Role.LASER, SetLaserOutput(enabled)))
-        self.configure_triggered.emit()
+    def on_laser_output_changed(self, enabled: bool) -> None:
+        self.configure_triggered.emit(Role.LASER, SetLaserOutput(enabled))
 
     @QtCore.Slot(float)
-    def laser_frequency_changed(self, frequency: float) -> None:
-        self._configure_cache.append((Role.LASER, SetLaserFrequency(frequency)))
-        self.configure_triggered.emit()
+    def on_laser_frequency_changed(self, frequency: float) -> None:
+        self.configure_triggered.emit(Role.LASER, SetLaserFrequency(frequency))
 
     @QtCore.Slot(bool)
-    def laser_tune_changed(self, tune: float) -> None:
-        self._configure_cache.append((Role.LASER, SetLaserTune(tune)))
-        self.configure_triggered.emit()
+    def on_laser_tune_changed(self, tune: float) -> None:
+        self.configure_triggered.emit(Role.LASER, SetLaserTune(tune))
 
     @QtCore.Slot(int)
-    def power_wavelength_changed(self, wavelength: int) -> None:
-        self._configure_cache.append(
-            (Role.POWER_METER_1, SetPowerMeterWavelength(wavelength))
-        )
-        self.configure_triggered.emit()
+    def on_power_wavelength_changed(self, name: str, wavelength: int) -> None:
+        self.configure_triggered.emit(name, SetPowerMeterWavelength(wavelength))
 
     @QtCore.Slot(int)
-    def power_average_count_changed(self, average_count: int) -> None:
-        self._configure_cache.append(
-            (Role.POWER_METER_1, SetPowerMeterAverageCount(average_count))
-        )
-        self.configure_triggered.emit()
+    def on_power_average_count_changed(self, name: str, average_count: int) -> None:
+        self.configure_triggered.emit(name, SetPowerMeterAverageCount(average_count))
 
-    @QtCore.Slot(int)
-    def power_wavelength_2_changed(self, wavelength: int) -> None:
-        self._configure_cache.append(
-            (Role.POWER_METER_2, SetPowerMeterWavelength(wavelength))
-        )
-        self.configure_triggered.emit()
+    @QtCore.Slot(object)
+    def on_move_relative(self, offset: Vector3) -> None:
+        self.move_relative_triggered.emit(offset)
 
-    @QtCore.Slot(int)
-    def power_average_count_2_changed(self, average_count: int) -> None:
-        self._configure_cache.append(
-            (Role.POWER_METER_2, SetPowerMeterAverageCount(average_count))
-        )
-        self.configure_triggered.emit()
-
-    @QtCore.Slot(int)
-    def power_wavelength_3_changed(self, wavelength: int) -> None:
-        self._configure_cache.append(
-            (Role.POWER_METER_3, SetPowerMeterWavelength(wavelength))
-        )
-        self.configure_triggered.emit()
-
-    @QtCore.Slot(int)
-    def power_average_count_3_changed(self, average_count: int) -> None:
-        self._configure_cache.append(
-            (Role.POWER_METER_3, SetPowerMeterAverageCount(average_count))
-        )
-        self.configure_triggered.emit()
-
-    def move_relative(self, x, y, z) -> None:
-        self._move_relative_cache = Vector3(x, y, z)
-        self.move_relative_triggered.emit()
-
-    def move_absolute(self, x, y, z) -> None:
-        self._move_absolute_cache = Vector3(x, y, z)
-        self.move_absolute_triggered.emit()
+    @QtCore.Slot(object)
+    def on_move_absolute(self, positon: Vector3) -> None:
+        self.move_absolute_triggered.emit(positon)
 
     def sample_name(self) -> str:
-        return self.general_group_box.sample_name()
+        return self._general_group_box.sample_name()
 
     def set_sample_name(self, sample_name: str) -> None:
-        self.general_group_box.set_sample_name(sample_name)
+        self._general_group_box.set_sample_name(sample_name)
 
     def output_path(self) -> str:
-        return self.general_group_box.output_path()
+        return self._general_group_box.output_path()
 
     def set_output_path(self, output_path: str) -> None:
-        self.general_group_box.set_output_path(output_path)
-
-    def handle_event(self, event: Any) -> None:
-        for operation_widget in self.operation_widgets():
-            operation_widget.handle_event(event)
+        self._general_group_box.set_output_path(output_path)

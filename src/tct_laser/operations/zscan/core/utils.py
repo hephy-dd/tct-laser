@@ -3,7 +3,7 @@ import math
 import numpy as np
 from numpy.typing import NDArray
 
-from tct_laser.core.utils import Vector3
+from tct_laser.core.geometry import Vector3
 
 type FloatArray = NDArray[np.float64]
 

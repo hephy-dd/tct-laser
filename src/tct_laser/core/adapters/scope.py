@@ -5,7 +5,7 @@ from comet.driver.rohde_schwarz.rto6 import RTO6
 from comet.driver.rohde_schwarz.rtp164 import RTP164
 from numpy.typing import NDArray
 
-from ..utils import Waveform
+from ..waveform import Waveform
 
 __all__ = ["RTO6Adapter", "RTP164Adapter"]
 

@@ -4,7 +4,8 @@ from dataclasses import dataclass
 
 from .context import WorkerContext as Context
 from .events import PositionChangedEvent
-from .utils import Vector3, Waveform
+from .geometry import Vector3
+from .waveform import Waveform
 
 logger = logging.getLogger(__name__)
 

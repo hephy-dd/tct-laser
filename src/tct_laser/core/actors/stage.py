@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from ..adapter import StageAdapter
-from ..utils import Vector3
+from ..geometry import Vector3
 from .instrument import InstrumentActor
 
 __all__ = ["StageActor"]

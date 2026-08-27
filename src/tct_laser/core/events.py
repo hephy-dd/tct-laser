@@ -2,7 +2,8 @@ from typing import Any
 
 import msgspec
 
-from .utils import Vector3, Waveform
+from .geometry import Vector3
+from .waveform import Waveform
 
 
 class StatusMessageEvent(msgspec.Struct, frozen=True):
