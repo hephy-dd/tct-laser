@@ -2,27 +2,29 @@ from collections.abc import Iterable
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from tct_laser.core.waveform import Waveform
 
 __all__ = ["ScopeGroupBox"]
+
+CHANNEL_COLORS = [
+    "yellow",
+    "green",
+    "red",
+    "blue",
+    "orange",
+    "purple",
+    "cyan",
+    "magenta",
+]
 
 
 class ScopePlotWidget(QtWidgets.QWidget):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self._colors = [
-            "yellow",
-            "green",
-            "red",
-            "blue",
-            "orange",
-            "purple",
-            "cyan",
-            "magenta",
-        ]
+        self._colors = CHANNEL_COLORS
 
         self._plot_widget = pg.PlotWidget(title="Oscilloscope")
         self._plot_widget.setLabel("bottom", "Time [ns]")
@@ -101,6 +103,8 @@ class ScopeGroupBox(QtWidgets.QGroupBox):
 
         self.setTitle("Scope")
 
+        self._colors = CHANNEL_COLORS
+
         self._live_preview_button = QtWidgets.QPushButton(self)
         self._live_preview_button.setText("&Live Preview")
         self._live_preview_button.setCheckable(True)
@@ -108,21 +112,27 @@ class ScopeGroupBox(QtWidgets.QGroupBox):
 
         self._plot_widget = ScopePlotWidget(self)
 
+        self._channels_label = QtWidgets.QLabel(self)
+        self._channels_label.setText("Channels")
+
         self._channel_check_boxes: dict[str, QtWidgets.QCheckBox] = {}
         self._channel_layout = QtWidgets.QHBoxLayout()
 
         self.channels_changed.connect(self._plot_widget.set_enabled_channels)
 
-        form_layout = QtWidgets.QFormLayout()
+        channels_layout = QtWidgets.QHBoxLayout()
+        channels_layout.addWidget(self._channels_label)
+        channels_layout.addLayout(self._channel_layout)
+
+        form_layout = QtWidgets.QHBoxLayout()
         form_layout.addWidget(self._live_preview_button)
 
         layout = QtWidgets.QVBoxLayout(self)
-        layout.addLayout(self._channel_layout)
+        layout.addLayout(channels_layout)
         layout.addLayout(form_layout)
         layout.addWidget(self._plot_widget)
 
     def set_channels(self, channels: Iterable[str]) -> None:
-        channels_ = list(channels)
         while self._channel_layout.count():  # QtWidgets.QHBoxLayout
             item = self._channel_layout.takeAt(0)
             if item is None:
@@ -134,12 +144,21 @@ class ScopeGroupBox(QtWidgets.QGroupBox):
             widget.deleteLater()
         self._channel_check_boxes = {}
         self._plot_widget.clear_channels()
-        for channel in channels_:
-            widget = QtWidgets.QCheckBox(self)
-            widget.setText(channel)
-            widget.stateChanged.connect(self._on_channel_changed)
-            self._channel_layout.addWidget(widget)
-            self._channel_check_boxes[channel] = widget
+        for i, channel in enumerate(channels):
+            check_box = QtWidgets.QCheckBox(self)
+            check_box.setText(channel)
+
+            color = self._colors[i % len(self._colors)]
+
+            pixmap = QtGui.QPixmap(12, 12)
+            pixmap.fill(QtGui.QColor(color))
+
+            check_box.setIcon(QtGui.QIcon(pixmap))
+            check_box.setIconSize(QtCore.QSize(12, 12))
+
+            check_box.stateChanged.connect(self._on_channel_changed)
+            self._channel_layout.addWidget(check_box)
+            self._channel_check_boxes[channel] = check_box
             self._plot_widget.add_channel(channel)
 
     def active_channels(self) -> list[str]:
