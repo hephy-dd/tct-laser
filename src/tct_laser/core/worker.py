@@ -4,6 +4,8 @@ from collections.abc import Callable
 from threading import Event
 from typing import Any
 
+from pyqtgraph.graphicsItems.ViewBox.ViewBox import math
+
 from tct_laser.core.geometry import Vector3
 
 from .actors import LaserActor, PowerMeterActor, ScopeActor
@@ -251,6 +253,10 @@ class MetricsWorker:
         try:
             with station.laser.acquire(timeout=0) as laser:
                 if laser.is_connected:
+                    diode_temperature = safely_poll(
+                        "diode_temperature",
+                        laser.get_diode_temperature,
+                    )
                     metrics = LaserMetrics(
                         output=safely_poll(
                             "output",

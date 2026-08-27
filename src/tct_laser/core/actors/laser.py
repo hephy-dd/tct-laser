@@ -31,7 +31,7 @@ class LaserActor(InstrumentActor):
     def get_head_temperature(self) -> float:
         return self.ask(GetHeadTemperature())
 
-    def get_diode_temperature(self) -> bool:
+    def get_diode_temperature(self) -> bool | None:
         return self.ask(GetDiodeTemperature())
 
 
@@ -91,5 +91,5 @@ class GetHeadTemperature:
 
 @dataclass(frozen=True, slots=True)
 class GetDiodeTemperature:
-    def __call__(self, laser: LaserAdapter) -> bool:
+    def __call__(self, laser: LaserAdapter) -> bool | None:
         return laser.get_diode_temperature()

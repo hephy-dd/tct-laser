@@ -70,5 +70,5 @@ class PilasControllerAdapter:
     def get_head_temperature(self) -> float:
         return self._driver.laser_head_temperature
 
-    def get_diode_temperature(self) -> bool:
-        raise NotImplementedError
+    def get_diode_temperature(self) -> None:
+        return None
