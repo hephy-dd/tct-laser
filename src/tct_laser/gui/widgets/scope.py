@@ -46,19 +46,20 @@ class ScopePlotWidget(QtWidgets.QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._plot_widget)
 
-    def set_channels(self, channels: Iterable[str]) -> None:
-        for channel, curve in self._curves.items():
+    def clear_channels(self) -> None:
+        for curve in self._curves.values():
             self._plot_widget.removeItem(curve)
             curve.deleteLater()
         self._curves.clear()
 
-        for i, channel in enumerate(channels):
-            self._curves[channel] = self._plot_widget.plot(
-                [],
-                [],
-                pen=pg.mkPen(color=self._colors[i % len(self._colors)], width=1),
-                name=channel,
-            )
+    def add_channel(self, channel: str) -> None:
+        i = len(self._curves)
+        self._curves[channel] = self._plot_widget.plot(
+            [],
+            [],
+            pen=pg.mkPen(color=self._colors[i % len(self._colors)], width=1),
+            name=channel,
+        )
 
     def set_waveform(self, waveform: Waveform) -> None:
         if waveform.channel not in self._curves:
@@ -78,13 +79,17 @@ class ScopePlotWidget(QtWidgets.QWidget):
             curve.clear()
 
     def clear_waveforms(self) -> None:
-        for curve in self._curves.values():
-            curve.clear()
+        for channel in self._curves:
+            self.clear_waveform(channel)
 
-    def update_channels(self, channels: list[str]) -> None:
-        for channel, curve in self._curves.items():
-            if channel not in channels:
-                curve.setData([], [])
+    def set_enabled_channels(self, channels: list[str]) -> None:
+        self._enabled_channels = set(channels)
+        self.clear_disabled_channels()
+
+    def clear_disabled_channels(self) -> None:
+        for channel in self._curves:
+            if channel not in self._enabled_channels:
+                self.clear_waveform(channel)
 
 
 class ScopeGroupBox(QtWidgets.QGroupBox):
@@ -106,7 +111,7 @@ class ScopeGroupBox(QtWidgets.QGroupBox):
         self._channel_check_boxes: dict[str, QtWidgets.QCheckBox] = {}
         self._channel_layout = QtWidgets.QHBoxLayout()
 
-        self.channels_changed.connect(self._plot_widget.update_channels)
+        self.channels_changed.connect(self._plot_widget.set_enabled_channels)
 
         form_layout = QtWidgets.QFormLayout()
         form_layout.addWidget(self._live_preview_button)
@@ -128,19 +133,27 @@ class ScopeGroupBox(QtWidgets.QGroupBox):
             widget.setParent(None)
             widget.deleteLater()
         self._channel_check_boxes = {}
+        self._plot_widget.clear_channels()
         for channel in channels_:
             widget = QtWidgets.QCheckBox(self)
             widget.setText(channel)
             widget.stateChanged.connect(self._on_channel_changed)
             self._channel_layout.addWidget(widget)
             self._channel_check_boxes[channel] = widget
-        self._plot_widget.set_channels(channels_)
+            self._plot_widget.add_channel(channel)
 
     def active_channels(self) -> list[str]:
         return [
             channel
             for channel, widget in self._channel_check_boxes.items()
             if widget.isChecked()
+        ]
+
+    def disabled_channels(self) -> list[str]:
+        return [
+            channel
+            for channel, widget in self._channel_check_boxes.items()
+            if not widget.isChecked()
         ]
 
     def set_active_channels(self, channels: Iterable[str]) -> None:
@@ -155,6 +168,7 @@ class ScopeGroupBox(QtWidgets.QGroupBox):
     @QtCore.Slot(object)
     def set_waveform(self, waveform):
         self._plot_widget.set_waveform(waveform)
+        self._clear_disabled_waveforms()
 
     @QtCore.Slot()
     def clear_waveforms(self, waveform):
@@ -164,7 +178,12 @@ class ScopeGroupBox(QtWidgets.QGroupBox):
     def _on_channel_changed(self) -> None:
         channels = self.active_channels()
         self.channels_changed.emit(channels)
+        self._clear_disabled_waveforms()
 
     @QtCore.Slot(bool)
     def _on_live_preview_toggled(self, state: bool) -> None:
         self.preview_toggled.emit(state)
+
+    def _clear_disabled_waveforms(self) -> None:
+        for channel in self.disabled_channels():
+            self._plot_widget.clear_waveform(channel)
