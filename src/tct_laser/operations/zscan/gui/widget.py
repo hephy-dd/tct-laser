@@ -5,7 +5,7 @@ from typing import Any, cast
 import msgspec
 from PySide6 import QtCore, QtWidgets
 
-from tct_laser.core.events import ChannelsChangedEvent
+from tct_laser.core.events import ChannelsChangedEvent, MoveAbsoluteAxisEvent
 from tct_laser.gui.operation import OperationWidget
 
 from ..core.zscan import (
@@ -68,8 +68,15 @@ class ZScanWidget(OperationWidget):
         self.average_count_spin_box.setRange(1, 1_000)
         self.average_count_spin_box.setValue(1)
 
+        self.current_autofocus_z: float | None = None
+
         self.autofocus_line_edit = QtWidgets.QLineEdit(self)
         self.autofocus_line_edit.setReadOnly(True)
+
+        self.move_autofocus_button = QtWidgets.QPushButton(self)
+        self.move_autofocus_button.setText("Move To")
+        self.move_autofocus_button.setStatusTip("Move stage to autofocus Z")
+        self.move_autofocus_button.clicked.connect(self.on_move_to_autofocus)
 
         self.start_button = QtWidgets.QPushButton("Z Scan", self)
         self.start_button.clicked.connect(self.start_triggered)
@@ -116,6 +123,7 @@ class ZScanWidget(OperationWidget):
 
         results_layout = QtWidgets.QFormLayout(self.results_group_box)
         results_layout.addRow("Autofocus", self.autofocus_line_edit)
+        results_layout.addWidget(self.move_autofocus_button)
 
         top_5_layout = QtWidgets.QVBoxLayout()
         top_5_layout.addWidget(self.start_button)
@@ -140,6 +148,7 @@ class ZScanWidget(OperationWidget):
         layout.addWidget(self.z_scan_h_plot)
 
     def set_inputs_enabled(self, enabled: bool) -> None:
+        self._inputs_enabled = enabled
         self.z_start_offset_spin_box.setEnabled(enabled)
         self.z_stop_offset_spin_box.setEnabled(enabled)
         self.z_steps_spin_box.setEnabled(enabled)
@@ -151,6 +160,15 @@ class ZScanWidget(OperationWidget):
         self.source_channel_combo_box.setEnabled(enabled)
         self.average_count_spin_box.setEnabled(enabled)
         self.start_button.setEnabled(enabled)
+        self.update_inputs_enabled()
+
+    def update_inputs_enabled(self) -> None:
+        is_autofocus_valid = self.current_autofocus_z is not None and math.isfinite(
+            self.current_autofocus_z
+        )
+        self.move_autofocus_button.setEnabled(
+            self._inputs_enabled and is_autofocus_valid
+        )
 
     def set_abort_enabled(self, enabled: bool) -> None:
         self.abort_button.setEnabled(enabled)
@@ -186,6 +204,8 @@ class ZScanWidget(OperationWidget):
             self.autofocus_line_edit.setText(f"{autofocus:.4f} mm")
         else:
             self.autofocus_line_edit.setText(f"{autofocus}")
+        self.current_autofocus_z = autofocus
+        self.update_inputs_enabled()
 
     def set_z_scan_xy_series(self, series: ZScanXYSeries) -> None:
         self.z_scan_plot.set_series(
@@ -199,6 +219,11 @@ class ZScanWidget(OperationWidget):
             z_um=series.z_um,
             slope_v_per_um=series.slope_v_per_um,
         )
+
+    @QtCore.Slot()
+    def on_move_to_autofocus(self) -> None:
+        if self.current_autofocus_z is not None:
+            self.submit_event(MoveAbsoluteAxisEvent("z", self.current_autofocus_z))
 
     def handle_event(self, event: Any) -> None:
         match event:
@@ -214,6 +239,8 @@ class ZScanWidget(OperationWidget):
     def clear(self) -> None:
         self.z_scan_plot.clear()
         self.z_scan_h_plot.clear()
+        self.current_autofocus_z = None
+        self.autofocus_line_edit.clear()
 
     def config(self) -> ZScanOperationConfig:
         return ZScanOperationConfig(

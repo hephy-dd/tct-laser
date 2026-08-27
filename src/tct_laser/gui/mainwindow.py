@@ -16,6 +16,7 @@ from ..core.events import (
     FailedEvent,
     FinishedEvent,
     LaserMetricsEvent,
+    MoveAbsoluteAxisEvent,
     MoveAbsoluteEvent,
     MoveRelativeEvent,
     PositionChangedEvent,
@@ -56,7 +57,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setMinimumSize(640, 480)
 
         self._context = MainContext(state)
-        self._configure_request = None
+        self._configure_requests: list[Any] = []
         self._move_request = None
 
         self._create_actions()
@@ -383,7 +384,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @QtCore.Slot(object)
     def on_configure(self, name: str, data: Any) -> None:
-        self._configure_request = ConfigureEvent([(name, data)])
+        self._configure_requests.append((name, data))
+        self.configure_triggered.emit()
 
     @QtCore.Slot(object)
     def on_move_relative(self, offset: Vector3) -> None:
@@ -393,6 +395,11 @@ class MainWindow(QtWidgets.QMainWindow):
     @QtCore.Slot(object)
     def on_move_absolute(self, position: Vector3) -> None:
         self._move_request = MoveAbsoluteEvent(position)
+        self.move_triggered.emit()
+
+    @QtCore.Slot(object)
+    def on_move_absolute_axis(self, axis: str, value: float) -> None:
+        self._move_request = MoveAbsoluteAxisEvent(axis, value)
         self.move_triggered.emit()
 
     def update_instrument_state(self) -> None:
@@ -437,6 +444,9 @@ class MainWindow(QtWidgets.QMainWindow):
             case PowerMeterMetricsEvent(name, metrics):
                 self._dashboard_widget.set_power_meter_metrics(name, metrics)
 
+            case MoveAbsoluteAxisEvent(axis, value):
+                self.on_move_absolute_axis(axis, value)
+
         for operation_widget in self._dashboard_widget.operation_widgets():
             operation_widget.handle_event(event)
 
@@ -453,13 +463,9 @@ class MainWindow(QtWidgets.QMainWindow):
         logger.info("entered [configure]")
         self.set_inputs_enabled(False)
         self.set_abort_enabled(False)
-        request = self._configure_request
-        self._configure_request = None
-        match request:
-            case ConfigureEvent():
-                self._context.submit_event(request)
-            case _:
-                self.operation_finished.emit()
+        requests = list(self._configure_requests)
+        self._configure_requests.clear()
+        self._context.submit_event(ConfigureEvent(requests))
 
     @QtCore.Slot()
     def _on_enter_move(self) -> None:
@@ -472,6 +478,8 @@ class MainWindow(QtWidgets.QMainWindow):
             case MoveRelativeEvent():
                 self._context.submit_event(request)
             case MoveAbsoluteEvent():
+                self._context.submit_event(request)
+            case MoveAbsoluteAxisEvent():
                 self._context.submit_event(request)
             case _:
                 self.operation_finished.emit()

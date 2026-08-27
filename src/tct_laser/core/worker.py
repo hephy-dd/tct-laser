@@ -15,6 +15,7 @@ from .events import (
     DisconnectEvent,
     LaserMetrics,
     LaserMetricsEvent,
+    MoveAbsoluteAxisEvent,
     MoveAbsoluteEvent,
     MoveRelativeEvent,
     PositionChangedEvent,
@@ -88,6 +89,8 @@ class Worker:
                 run_move_relative(self.context, offset)
             case MoveAbsoluteEvent(position):
                 run_move_absolute(self.context, position)
+            case MoveAbsoluteAxisEvent(axis, value):
+                run_move_absolute_axis(self.context, axis, value)
             case RunOperationEvent(operation_runner):
                 try:
                     self.context.set_live_waveform_allowed(False)
@@ -172,6 +175,13 @@ def run_move_absolute(context: Context, position: Vector3) -> None:
     context.set_status_progress(0, 0)
     Session(context).move_absolute(position)
     context.set_status_message("Move absolute done.")
+
+
+def run_move_absolute_axis(context: Context, axis: str, value: float) -> None:
+    context.set_status_message("Move absolute axis...")
+    context.set_status_progress(0, 0)
+    Session(context).move_absolute_axis(axis, value)
+    context.set_status_message("Move absolute axis done.")
 
 
 def safely_poll[T](

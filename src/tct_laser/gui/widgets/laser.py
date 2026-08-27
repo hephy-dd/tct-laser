@@ -49,7 +49,7 @@ class LaserGroupBox(QtWidgets.QGroupBox):
         self._laser_diode_temperature_line_edit.setReadOnly(True)
 
         layout = QtWidgets.QFormLayout(self)
-        layout.addWidget(self._output_button)
+        layout.addRow("Output", self._output_button)
         layout.addRow("Frequency", self._frequency_spin_box)
         layout.addRow("Tune", self._tune_spin_box)
         layout.addRow("Head Temp.", self._laser_head_temperature_line_edit)

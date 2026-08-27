@@ -90,6 +90,11 @@ class MoveAbsoluteEvent(msgspec.Struct, frozen=True):
     position: Vector3
 
 
+class MoveAbsoluteAxisEvent(msgspec.Struct, frozen=True):
+    axis: str
+    value: float
+
+
 class ChannelsChangedEvent(msgspec.Struct, frozen=True):
     channels: list[str]
 

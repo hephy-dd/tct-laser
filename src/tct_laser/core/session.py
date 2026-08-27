@@ -43,6 +43,21 @@ class Session:
             stage.move_absolute(position)
             return self.wait_moving(stage)
 
+    def move_absolute_axis(self, axis: str, value: float) -> bool:
+        logger.info("move absolute axis=%s value=%.4f", axis, value)
+        if axis not in {"x", "y", "z"}:
+            raise ValueError(f"Unsupported axis: {axis}")
+        with self.context.station.stage.acquire(timeout=self.context.timeout) as stage:
+            x, y, z = stage.get_position()
+            match axis:
+                case "x":
+                    stage.move_absolute(Vector3(value, y, z))
+                case "y":
+                    stage.move_absolute(Vector3(x, value, z))
+                case "z":
+                    stage.move_absolute(Vector3(x, y, value))
+            return self.wait_moving(stage)
+
     def position(self) -> Vector3:
         with self.context.station.stage.acquire(timeout=self.context.timeout) as stage:
             return stage.get_position()
