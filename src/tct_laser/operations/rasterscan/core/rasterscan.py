@@ -71,10 +71,33 @@ class RasterScanOperationRunner(msgspec.Struct, frozen=True):
         run_raster_scan(context, self.config)
 
 
+class Rect(msgspec.Struct, frozen=True):
+    x: float
+    y: float
+    width: float
+    height: float
+
+
+class Raster(msgspec.Struct, frozen=True):
+    data: NDArray
+    width: int
+    height: int
+    raster_extent: Rect
+
+    @classmethod
+    def create(cls, width: int, height: int, raster_extent: Rect) -> Self:
+        data = np.full((width, height), np.nan, dtype=np.float64)
+        return cls(data, width, height, raster_extent)
+
+    def set_value(self, x: int, y: int, value: float) -> None:
+        self.data[x, y] = value
+
+
 class CreateRaster(msgspec.Struct, frozen=True):
     raster_type: RasterType
     width: int
     height: int
+    raster_extent: Rect
 
 
 class UpdateRasterValue(msgspec.Struct, frozen=True):
@@ -90,14 +113,6 @@ class UpdateXProfile(msgspec.Struct, frozen=True):
 
 class UpdateYProfile(msgspec.Struct, frozen=True):
     y_profile: Profile
-
-
-def create_raster(width: int, height: int) -> NDArray:
-    return np.full((width, height), np.nan, dtype=np.float64)
-
-
-def set_raster_value(raster: NDArray, x: int, y: int, value: float) -> None:
-    raster[x, y] = value
 
 
 def run_initialize(context: Context, config: RasterScanOperationConfig) -> None:
@@ -139,7 +154,7 @@ def run_raster_scan(context: Context, config: RasterScanOperationConfig) -> None
 
     scale = 1e-3  # µm to mm
 
-    # Total dimensions of the scan window in µm.
+    # Distance from the first measurement position to the last.
     width_um = abs(config.offset_left - config.offset_right)
     height_um = abs(config.offset_top - config.offset_bottom)
 
@@ -148,7 +163,7 @@ def run_raster_scan(context: Context, config: RasterScanOperationConfig) -> None
     top = config.offset_top * scale
     bottom = config.offset_bottom * scale
 
-    # Include both edges of the scan window.
+    # Number of measurement positions, including both edges.
     n_points_x = config.n_points_x
     n_points_y = config.n_points_y
 
@@ -156,20 +171,37 @@ def run_raster_scan(context: Context, config: RasterScanOperationConfig) -> None
 
     x_size = width_um * scale
     y_size = height_um * scale
-    step_x_size = x_size / n_points_x
-    step_y_size = y_size / n_points_y
+
+    step_x_size = x_size / (n_points_x - 1)
+    step_y_size = y_size / (n_points_y - 1)
+
+    step_x_um = width_um / (n_points_x - 1)
+    step_y_um = height_um / (n_points_y - 1)
+
+    raster_extent = Rect(
+        x=config.offset_left - (step_x_um / 2),
+        y=config.offset_top - (step_y_um / 2),
+        width=width_um + step_x_um,
+        height=height_um + step_y_um,
+    )
 
     logger.info("create raster: peak, %d, %d", n_points_x, n_points_y)
-    raster_peak = create_raster(n_points_x, n_points_y)
-    context.submit_event(CreateRaster(RasterType.PEAK, n_points_x, n_points_y))
+    raster_peak = Raster.create(n_points_x, n_points_y, raster_extent)
+    context.submit_event(
+        CreateRaster(RasterType.PEAK, n_points_x, n_points_y, raster_extent)
+    )
 
     logger.info("create raster: area, %d, %d", n_points_x, n_points_y)
-    raster_area = create_raster(n_points_x, n_points_y)
-    context.submit_event(CreateRaster(RasterType.AREA, n_points_x, n_points_y))
+    raster_area = Raster.create(n_points_x, n_points_y, raster_extent)
+    context.submit_event(
+        CreateRaster(RasterType.AREA, n_points_x, n_points_y, raster_extent)
+    )
 
     logger.info("create raster: t_max, %d, %d", n_points_x, n_points_y)
-    raster_t_max = create_raster(n_points_x, n_points_y)
-    context.submit_event(CreateRaster(RasterType.T_MAX, n_points_x, n_points_y))
+    raster_t_max = Raster.create(n_points_x, n_points_y, raster_extent)
+    context.submit_event(
+        CreateRaster(RasterType.T_MAX, n_points_x, n_points_y, raster_extent)
+    )
 
     context.set_status_message("Raster Scan (0, 0)")
     context.set_status_progress(0, total_steps)
@@ -280,7 +312,7 @@ def run_raster_scan(context: Context, config: RasterScanOperationConfig) -> None
 
             # Peak
             mean_peak = float(np.max(wf.y))
-            set_raster_value(raster_peak, x, y, mean_peak)
+            raster_peak.set_value(x, y, mean_peak)
             context.submit_event(UpdateRasterValue(RasterType.PEAK, x, y, mean_peak))
             logger.info("raster[%s,%s].peak: %.3G", x, y, mean_peak)
 
@@ -293,14 +325,14 @@ def run_raster_scan(context: Context, config: RasterScanOperationConfig) -> None
 
             # Area
             mean_area = pulse_area_window(wf.x, wf.y)
-            set_raster_value(raster_area, x, y, mean_area)
+            raster_area.set_value(x, y, mean_area)
             context.submit_event(UpdateRasterValue(RasterType.AREA, x, y, mean_area))
             logger.info("raster[%s,%s].area: %.3G", x, y, mean_area)
 
             # Time of maximum
             imax = int(np.argmax(wf.y))
             mean_t_max = float(wf.x[imax])
-            set_raster_value(raster_t_max, x, y, mean_t_max)
+            raster_t_max.set_value(x, y, mean_t_max)
             context.submit_event(UpdateRasterValue(RasterType.T_MAX, x, y, mean_t_max))
             logger.info("raster[%s,%s].t_max: %.3G", x, y, mean_t_max)
 
@@ -342,7 +374,9 @@ def run_raster_scan(context: Context, config: RasterScanOperationConfig) -> None
         logger.info("generating plots...")
 
         plot_writer = PlotWriter(
-            raster_ampl=raster_peak[..., np.newaxis],  # add Z axis for backward compat
+            raster_ampl=raster_peak.data[
+                ..., np.newaxis
+            ],  # add Z axis for backward compat
             x_coords=x_coords,
             y_coords=y_coords,
             z_coords=z_coords,

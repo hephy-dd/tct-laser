@@ -15,13 +15,14 @@ from tct_laser.gui.operation import OperationWidget
 from ..core.rasterscan import (
     CreateRaster,
     Profile,
+    Raster,
     RasterScanOperationConfig,
     RasterScanOperationRunner,
     RasterType,
+    Rect,
     UpdateRasterValue,
     UpdateXProfile,
     UpdateYProfile,
-    create_raster,
 )
 
 RASTER_UPDATE_INTERVAL: float = 1.0
@@ -251,7 +252,7 @@ class RasterScanPlotWidget(QtWidgets.QWidget):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self.raster_data: dict[RasterType, NDArray] = {}
+        self.raster_data: dict[RasterType, Raster] = {}
         self.x_profile = Profile.create_empty()
         self.y_profile = Profile.create_empty()
 
@@ -278,7 +279,7 @@ class RasterScanPlotWidget(QtWidgets.QWidget):
         self.plot_stack_1.set_color_map(color_map)
         self.plot_stack_2.set_color_map(color_map)
 
-    def set_raster(self, raster_type: RasterType, raster: NDArray) -> None:
+    def set_raster(self, raster_type: RasterType, raster: Raster) -> None:
         self.raster_data[raster_type] = raster
 
     def set_x_profile(self, x_profile: Profile) -> None:
@@ -313,22 +314,25 @@ class RasterScanPlotWidget(QtWidgets.QWidget):
             case PlotType.PEAK_XY:
                 self._update_xy_profile_2()
 
-    def _select_raster(self, raster_type: RasterType) -> NDArray:
-        return self.raster_data.get(raster_type, create_raster(0, 0))
+    def _update_raster(self, raster_plot) -> None:
+        raster = self.raster_data.get(raster_plot.raster_type)
+        if raster is None:
+            raster_plot.img.clear()
+        else:
+            data = raster.data
+            levels = get_levels_ignore_nan(data)
+            raster_plot.img.setImage(data, auto_levels=False, levels=levels)
+            rect = raster.raster_extent
+            raster_plot.img.setRect(
+                QtCore.QRectF(rect.x, rect.y, rect.width, rect.height)
+            )
+            raster_plot.cbar.setLevels(levels)
 
     def _update_raster_1(self) -> None:
-        raster_plot = self.plot_stack_1.raster_plot
-        data = self._select_raster(raster_plot.raster_type)
-        levels = get_levels_ignore_nan(data)
-        raster_plot.img.setImage(data, auto_levels=False, levels=levels)
-        raster_plot.cbar.setLevels(levels)
+        self._update_raster(self.plot_stack_1.raster_plot)
 
     def _update_raster_2(self) -> None:
-        raster_plot = self.plot_stack_2.raster_plot
-        data = self._select_raster(raster_plot.raster_type)
-        levels = get_levels_ignore_nan(data)
-        raster_plot.img.setImage(data, auto_levels=False, levels=levels)
-        raster_plot.cbar.setLevels(levels)
+        self._update_raster(self.plot_stack_2.raster_plot)
 
     def _update_xy_profile_1(self) -> None:
         xy_profile_plot = self.plot_stack_1.xy_profile_plot
@@ -469,7 +473,7 @@ class RasterScanWidget(OperationWidget):
         layout.addLayout(top_layout)
         layout.addWidget(self.plot_widget)
 
-        self._raster_cache: dict[RasterType, NDArray] = {}
+        self._raster_cache: dict[RasterType, Raster] = {}
         self._x_profile_cache = Profile.create_empty()
         self._y_profile_cache = Profile.create_empty()
 
@@ -561,8 +565,8 @@ class RasterScanWidget(OperationWidget):
 
     def handle_event(self, event: Any) -> None:
         match event:
-            case CreateRaster(raster_type, width, height):
-                self.create_raster(raster_type, width, height)
+            case CreateRaster(raster_type, width, height, raster_extent):
+                self.create_raster(raster_type, width, height, raster_extent)
             case UpdateRasterValue(raster_type, x, y, value):
                 self.update_raster_value(raster_type, x, y, value)
             case UpdateXProfile(x_profile):
@@ -572,15 +576,22 @@ class RasterScanWidget(OperationWidget):
             case ChannelsChangedEvent(channels):
                 self.set_source_channels(channels)
 
-    def create_raster(self, raster_type: RasterType, width: int, height: int) -> None:
-        self._raster_cache[raster_type] = create_raster(height, width)  # sic!
+    def create_raster(
+        self, raster_type: RasterType, width: int, height: int, raster_extent: Rect
+    ) -> None:
+        inverted_extent = Rect(
+            raster_extent.y, raster_extent.x, raster_extent.height, raster_extent.width
+        )
+        self._raster_cache[raster_type] = Raster.create(
+            height, width, inverted_extent
+        )  # sic!
 
     def update_raster_value(
         self, raster_type: RasterType, x: int, y: int, value: float
     ) -> None:
         if raster_type not in self._raster_cache:
             raise ValueError(f"No such raster: {raster_type}")
-        self._raster_cache[raster_type][y, x] = value
+        self._raster_cache[raster_type].set_value(y, x, value)
 
     def update_x_profiles(self, x_profile: Profile) -> None:
         self._x_profile_cache = x_profile
