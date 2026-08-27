@@ -32,13 +32,13 @@ class Session:
         raise TimeoutError("Stage move timeout")
 
     def move_relative(self, offset: Vector3) -> bool:
-        logger.info("move relative %.4G %.4G %.4G", offset.x, offset.y, offset.z)
+        logger.info("move relative %.4f %.4f %.4f", offset.x, offset.y, offset.z)
         with self.context.station.stage.acquire(timeout=self.context.timeout) as stage:
             stage.move_relative(offset)
             return self.wait_moving(stage)
 
     def move_absolute(self, position: Vector3) -> bool:
-        logger.info("move absolute %.4G %.4G %.4G", position.x, position.y, position.z)
+        logger.info("move absolute %.4f %.4f %.4f", position.x, position.y, position.z)
         with self.context.station.stage.acquire(timeout=self.context.timeout) as stage:
             stage.move_absolute(position)
             return self.wait_moving(stage)

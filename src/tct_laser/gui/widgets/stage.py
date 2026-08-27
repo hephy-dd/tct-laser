@@ -66,6 +66,8 @@ class ControlWidget(QtWidgets.QWidget):
         self._prec = 4
         self._unit = "mm"
 
+        self._current_position = Vector3(0, 0, 0)
+
         self._position_label = QtWidgets.QLabel("Pos", self)
         self._position_label.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
 
@@ -132,6 +134,14 @@ class ControlWidget(QtWidgets.QWidget):
             )
         )
 
+        self._move_relative_button = QtWidgets.QPushButton(self)
+        self._move_relative_button.setText("Move Rel...")
+        self._move_relative_button.clicked.connect(self.on_move_relative)
+
+        self._move_absolute_button = QtWidgets.QPushButton(self)
+        self._move_absolute_button.setText("Move Abs...")
+        self._move_absolute_button.clicked.connect(self.on_move_absolute)
+
         layout = QtWidgets.QGridLayout(self)
         layout.addWidget(self._position_label, 0, 1)
         layout.addWidget(self._step_label, 0, 3)
@@ -156,13 +166,16 @@ class ControlWidget(QtWidgets.QWidget):
         layout.addWidget(self._y_add_button, 2, 4)
         layout.addWidget(self._z_add_button, 3, 4)
 
+        layout.addWidget(self._move_relative_button, 1, 6)
+        layout.addWidget(self._move_absolute_button, 2, 6)
+
         layout.setRowStretch(4, 1)
         layout.setColumnStretch(5, 1)
 
     def _create_position_line_edit(self) -> QtWidgets.QLineEdit:
         line_edit = QtWidgets.QLineEdit(self)
         line_edit.setReadOnly(True)
-        line_edit.setAlignment(QtCore.Qt.AlignmentFlag.AlignLeft)
+        line_edit.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
         return line_edit
 
     def _create_step_spin_box(self, value: float) -> QtWidgets.QDoubleSpinBox:
@@ -171,17 +184,19 @@ class ControlWidget(QtWidgets.QWidget):
         spin_box.setRange(0, 1000)
         spin_box.setValue(value)
         spin_box.setSuffix(f" {self._unit}")
+        spin_box.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight)
         return spin_box
 
     def set_position(self, position: Vector3) -> None:
         self._x_pos_line_edit.setText(f"{position.x:.{self._prec}f} {self._unit}")
         self._y_pos_line_edit.setText(f"{position.y:.{self._prec}f} {self._unit}")
         self._z_pos_line_edit.setText(f"{position.z:.{self._prec}f} {self._unit}")
+        self._current_position = position
 
     def clear_position(self) -> None:
-        self._x_pos_line_edit.setText("loading...")
-        self._y_pos_line_edit.setText("loading...")
-        self._z_pos_line_edit.setText("loading...")
+        self._x_pos_line_edit.setText("...")
+        self._y_pos_line_edit.setText("...")
+        self._z_pos_line_edit.setText("...")
 
     def set_inputs_enabled(self, enabled: bool) -> None:
         for widget in (
@@ -194,8 +209,77 @@ class ControlWidget(QtWidgets.QWidget):
             self._x_step_spin_box,
             self._y_step_spin_box,
             self._z_step_spin_box,
+            self._move_relative_button,
+            self._move_absolute_button,
         ):
             widget.setEnabled(enabled)
+
+    @QtCore.Slot()
+    def on_move_relative(self) -> None:
+        dialog = MoveDialog(self)
+        dialog.setWindowTitle("Move Relative")
+        dialog.set_position(Vector3(0, 0, 0))
+        if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
+            self.move_relative_triggered.emit(dialog.position())
+
+    @QtCore.Slot()
+    def on_move_absolute(self) -> None:
+        dialog = MoveDialog(self)
+        dialog.setWindowTitle("Move Absolute")
+        dialog.set_position(self._current_position)
+        if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
+            self.move_absolute_triggered.emit(dialog.position())
+
+
+class MoveDialog(QtWidgets.QDialog):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
+        super().__init__(parent)
+
+        self._prec = 4
+        self._unit = "mm"
+
+        self.setWindowTitle("Move")
+        self.setModal(True)
+
+        self._pos_x_spin_box = self._create_position_spin_box()
+        self._pos_y_spin_box = self._create_position_spin_box()
+        self._pos_z_spin_box = self._create_position_spin_box()
+
+        self._button_box = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.StandardButton.Ok
+            | QtWidgets.QDialogButtonBox.StandardButton.Cancel,
+            parent=self,
+        )
+        self._button_box.accepted.connect(self.accept)
+        self._button_box.rejected.connect(self.reject)
+
+        form_layout = QtWidgets.QFormLayout()
+        form_layout.addRow("&X", self._pos_x_spin_box)
+        form_layout.addRow("&Y", self._pos_y_spin_box)
+        form_layout.addRow("&Z", self._pos_z_spin_box)
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addLayout(form_layout)
+        layout.addWidget(self._button_box)
+
+    def _create_position_spin_box(self) -> QtWidgets.QDoubleSpinBox:
+        spin_box = QtWidgets.QDoubleSpinBox(self)
+        spin_box.setRange(-1000, 1000)
+        spin_box.setDecimals(self._prec)
+        spin_box.setSuffix(f" {self._unit}")
+        return spin_box
+
+    def position(self) -> Vector3:
+        return Vector3(
+            x=self._pos_x_spin_box.value(),
+            y=self._pos_y_spin_box.value(),
+            z=self._pos_z_spin_box.value(),
+        )
+
+    def set_position(self, position: Vector3) -> None:
+        self._pos_x_spin_box.setValue(position.x)
+        self._pos_y_spin_box.setValue(position.y)
+        self._pos_z_spin_box.setValue(position.z)
 
 
 class Position(msgspec.Struct):
@@ -215,7 +299,9 @@ class PositionsWidget(QtWidgets.QWidget):
         self._current_position = Vector3(0, 0, 0)
 
         self._positions_tree_widget = QtWidgets.QTreeWidget(self)
-        self._positions_tree_widget.setHeaderLabels(["Name", "X", "Y", "Z", "Comment"])
+        self._positions_tree_widget.setHeaderLabels(
+            ["Name", "X (mm)", "Y (mm)", "Z (mm)", "Comment"]
+        )
         self._positions_tree_widget.setRootIsDecorated(False)
         self._positions_tree_widget.setAlternatingRowColors(True)
         self._positions_tree_widget.setSelectionMode(
