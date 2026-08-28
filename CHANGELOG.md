@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-28
+
+### Added
+
+- Presets for raster scan options (#9).
+- Relative and absolute movement actions to stage control.
+
+### Changed
+
+- Raster plot axes show relative offsets to starting point.
+- Renamed raster scan offset inputs.
+
 ## [0.3.0] - 2026-08-03
 
 ### Added
@@ -45,7 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Z scan opertion.
 
-[unreleased]: https://github.com/hephy-dd/tct-laser/compare/v0.3.0...HEAD
+[unreleased]: https://github.com/hephy-dd/tct-laser/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/hephy-dd/tct-laser/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/hephy-dd/tct-laser/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/hephy-dd/tct-laser/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/hephy-dd/tct-laser/compare/v0.1.0...v0.1.1
