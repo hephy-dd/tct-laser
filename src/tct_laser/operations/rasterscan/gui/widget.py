@@ -351,25 +351,25 @@ class RasterScanWidget(OperationWidget):
 
         self.setWindowTitle("Raster Scan")
 
-        self.left_spin_box = QtWidgets.QSpinBox(self)
-        self.left_spin_box.setRange(-1_000_000, 0)
-        self.left_spin_box.setValue(-60)
-        self.left_spin_box.setSuffix(" um")
+        self.min_offset_x = QtWidgets.QSpinBox(self)
+        self.min_offset_x.setRange(-1_000_000, 0)
+        self.min_offset_x.setValue(-60)
+        self.min_offset_x.setSuffix(" um")
 
-        self.right_spin_box = QtWidgets.QSpinBox(self)
-        self.right_spin_box.setRange(0, 1_000_000)
-        self.right_spin_box.setValue(60)
-        self.right_spin_box.setSuffix(" um")
+        self.max_offset_x = QtWidgets.QSpinBox(self)
+        self.max_offset_x.setRange(0, 1_000_000)
+        self.max_offset_x.setValue(60)
+        self.max_offset_x.setSuffix(" um")
 
-        self.top_spin_box = QtWidgets.QSpinBox(self)
-        self.top_spin_box.setRange(-1_000_000, 0)
-        self.top_spin_box.setValue(-60)
-        self.top_spin_box.setSuffix(" um")
+        self.min_offset_y = QtWidgets.QSpinBox(self)
+        self.min_offset_y.setRange(-1_000_000, 0)
+        self.min_offset_y.setValue(-60)
+        self.min_offset_y.setSuffix(" um")
 
-        self.bottom_spin_box = QtWidgets.QSpinBox(self)
-        self.bottom_spin_box.setRange(0, 1_000_000)
-        self.bottom_spin_box.setValue(60)
-        self.bottom_spin_box.setSuffix(" um")
+        self.max_offset_y = QtWidgets.QSpinBox(self)
+        self.max_offset_y.setRange(0, 1_000_000)
+        self.max_offset_y.setValue(60)
+        self.max_offset_y.setSuffix(" um")
 
         self.n_points_x_spin_box = QtWidgets.QSpinBox(self)
         self.n_points_x_spin_box.setRange(1, 1_000_000)
@@ -424,18 +424,18 @@ class RasterScanWidget(OperationWidget):
         self.x_axis_group_box.setTitle("X-Axis")
 
         top_1_layout = QtWidgets.QFormLayout(self.x_axis_group_box)
-        top_1_layout.addRow("Start Offset", self.left_spin_box)
-        top_1_layout.addRow("Stop Offset", self.right_spin_box)
-        top_1_layout.addRow("Points", self.n_points_x_spin_box)
+        top_1_layout.addRow("Offset Top", self.min_offset_x)
+        top_1_layout.addRow("Offset Bottom", self.max_offset_x)
+        top_1_layout.addRow("Point Count", self.n_points_x_spin_box)
         top_1_layout.addRow("Step Size", self.step_x_spin_box)
 
         self.y_axis_group_box = QtWidgets.QGroupBox(self)
         self.y_axis_group_box.setTitle("Y-Axis")
 
         top_2_layout = QtWidgets.QFormLayout(self.y_axis_group_box)
-        top_2_layout.addRow("Start Offset", self.top_spin_box)
-        top_2_layout.addRow("Stop Offset", self.bottom_spin_box)
-        top_2_layout.addRow("Points", self.n_points_y_spin_box)
+        top_2_layout.addRow("Offset Left", self.min_offset_y)
+        top_2_layout.addRow("Offset Right", self.max_offset_y)
+        top_2_layout.addRow("Point Count", self.n_points_y_spin_box)
         top_2_layout.addRow("Step Size", self.step_y_spin_box)
 
         self.scan_option_group_box = QtWidgets.QGroupBox(self)
@@ -482,16 +482,16 @@ class RasterScanWidget(OperationWidget):
         self.raster_timer.start(int(RASTER_UPDATE_INTERVAL * 1000))
 
         self.x_raster_binding = RasterAxisBinding(
-            negative_offset=self.left_spin_box,
-            positive_offset=self.right_spin_box,
+            negative_offset=self.min_offset_x,
+            positive_offset=self.max_offset_x,
             n_points=self.n_points_x_spin_box,
             step_size=self.step_x_spin_box,
             parent=self,
         )
 
         self.y_raster_binding = RasterAxisBinding(
-            negative_offset=self.top_spin_box,
-            positive_offset=self.bottom_spin_box,
+            negative_offset=self.min_offset_y,
+            positive_offset=self.max_offset_y,
             n_points=self.n_points_y_spin_box,
             step_size=self.step_y_spin_box,
             parent=self,
@@ -511,10 +511,10 @@ class RasterScanWidget(OperationWidget):
         self.plot_widget.set_y_profile(self._y_profile_cache)
 
     def set_inputs_enabled(self, enabled: bool) -> None:
-        self.left_spin_box.setEnabled(enabled)
-        self.right_spin_box.setEnabled(enabled)
-        self.top_spin_box.setEnabled(enabled)
-        self.bottom_spin_box.setEnabled(enabled)
+        self.min_offset_x.setEnabled(enabled)
+        self.max_offset_x.setEnabled(enabled)
+        self.min_offset_y.setEnabled(enabled)
+        self.max_offset_y.setEnabled(enabled)
         self.n_points_x_spin_box.setEnabled(enabled)
         self.step_x_spin_box.setEnabled(enabled)
         self.n_points_y_spin_box.setEnabled(enabled)
@@ -601,10 +601,10 @@ class RasterScanWidget(OperationWidget):
 
     def config(self) -> RasterScanOperationConfig:
         return RasterScanOperationConfig(
-            offset_left=-abs(self.left_spin_box.value()),
-            offset_right=abs(self.right_spin_box.value()),
-            offset_top=-abs(self.top_spin_box.value()),
-            offset_bottom=abs(self.bottom_spin_box.value()),
+            offset_left=-abs(self.min_offset_x.value()),
+            offset_right=abs(self.max_offset_x.value()),
+            offset_top=-abs(self.min_offset_y.value()),
+            offset_bottom=abs(self.max_offset_y.value()),
             n_points_x=self.n_points_x_spin_box.value(),
             n_points_y=self.n_points_y_spin_box.value(),
             mode=self.mode(),
@@ -615,10 +615,10 @@ class RasterScanWidget(OperationWidget):
         )
 
     def set_config(self, config: RasterScanOperationConfig) -> None:
-        self.left_spin_box.setValue(-abs(config.offset_left))
-        self.right_spin_box.setValue(config.offset_right)
-        self.top_spin_box.setValue(-abs(config.offset_top))
-        self.bottom_spin_box.setValue(config.offset_bottom)
+        self.min_offset_x.setValue(-abs(config.offset_left))
+        self.max_offset_x.setValue(config.offset_right)
+        self.min_offset_y.setValue(-abs(config.offset_top))
+        self.max_offset_y.setValue(config.offset_bottom)
         self.n_points_x_spin_box.setValue(config.n_points_x)
         self.n_points_y_spin_box.setValue(config.n_points_y)
         self.set_mode(config.mode)
