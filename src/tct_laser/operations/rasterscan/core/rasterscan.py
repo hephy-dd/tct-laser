@@ -215,10 +215,10 @@ def run_raster_scan(context: Context, config: RasterScanOperationConfig) -> None
     y_coords = np.asarray([initial_pos.y]) + np.linspace(top, bottom, n_points_y)
     z_coords = np.asarray([initial_pos.z])
 
-    x_profile = Profile.create(x_coords, np.full(len(x_coords), np.nan))
+    x_profile = Profile.create(x_coords - initial_pos.x, np.full(len(x_coords), np.nan))
     context.submit_event(UpdateXProfile(x_profile.copy()))
 
-    y_profile = Profile.create(y_coords, np.full(len(y_coords), np.nan))
+    y_profile = Profile.create(y_coords - initial_pos.y, np.full(len(y_coords), np.nan))
     context.submit_event(UpdateYProfile(y_profile.copy()))
 
     start_pos = Vector3(
