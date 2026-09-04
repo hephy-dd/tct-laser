@@ -1,11 +1,12 @@
 import math
 from collections.abc import Iterable
-from typing import Any, cast
+from typing import Any
 
 import msgspec
 from PySide6 import QtCore, QtWidgets
 
 from tct_laser.core.events import ChannelsChangedEvent, MoveAbsoluteAxisEvent
+from tct_laser.gui.adapters import SettingsAdapter
 from tct_laser.gui.operation import OperationWidget
 
 from ..core.zscan import (
@@ -271,12 +272,11 @@ class ZScanWidget(OperationWidget):
     def create_runner(self) -> ZScanOperationRunner:
         return ZScanOperationRunner(config=self.config())
 
-    def read_settings(self, settings: QtCore.QSettings) -> None:
-        settings.beginGroup("ZScan")
-        try:
-            raw = cast(str, settings.value("config", "", type=str))
-        finally:
-            settings.endGroup()
+    def read_settings(self) -> None:
+        settings = SettingsAdapter(QtCore.QSettings())
+
+        with settings.group("ZScan"):
+            raw = settings.get("config", "")
 
         try:
             loaded = msgspec.json.decode(raw or "{}")
@@ -288,12 +288,9 @@ class ZScanWidget(OperationWidget):
             # Ignore invalid or incompatible settings.
             pass
 
-    def write_settings(self, settings: QtCore.QSettings) -> None:
-        settings.beginGroup("ZScan")
-        try:
-            settings.setValue(
-                "config",
-                msgspec.json.encode(self.config()).decode("utf-8"),
-            )
-        finally:
-            settings.endGroup()
+    def write_settings(self) -> None:
+        settings = SettingsAdapter(QtCore.QSettings())
+
+        with settings.group("ZScan"):
+            config = msgspec.json.encode(self.config()).decode("utf-8")
+            settings.set("config", config)

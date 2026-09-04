@@ -1,10 +1,11 @@
 from collections.abc import Iterable
-from typing import Any, cast
+from typing import Any
 
 import msgspec
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from tct_laser.core.events import ChannelsChangedEvent
+from tct_laser.gui.adapters import SettingsAdapter
 from tct_laser.gui.operation import OperationWidget
 
 from ..core.rasterscan import (
@@ -547,14 +548,13 @@ class RasterScanWidget(OperationWidget):
         except msgspec.DecodeError, msgspec.ValidationError, TypeError, ValueError:
             return None
 
-    def read_settings(self, settings: QtCore.QSettings) -> None:
-        settings.beginGroup("RasterScan")
-        try:
-            raw_config = cast(str, settings.value("config", "", type=str))
-            raw_presets = cast(str, settings.value("presets", "", type=str))
-            selected_preset = cast(str, settings.value("selected_preset", "", type=str))
-        finally:
-            settings.endGroup()
+    def read_settings(self) -> None:
+        settings = SettingsAdapter(QtCore.QSettings())
+
+        with settings.group("RasterScan"):
+            raw_config = settings.get("config", "")
+            raw_presets = settings.get("presets", "")
+            selected_preset = settings.get("selected_preset", "")
 
         # Keep the legacy/current config as the fallback when there is no valid preset.
         config = self._decode_config(raw_config)
@@ -591,24 +591,19 @@ class RasterScanWidget(OperationWidget):
         else:
             self._update_preset_controls()
 
-    def write_settings(self, settings: QtCore.QSettings) -> None:
+    def write_settings(self) -> None:
+        settings = SettingsAdapter(QtCore.QSettings())
+
         presets = {
             name: msgspec.to_builtins(config) for name, config in self._presets.items()
         }
 
-        settings.beginGroup("RasterScan")
-        try:
-            settings.setValue(
-                "config",
-                msgspec.json.encode(self.config()).decode("utf-8"),
-            )
-            settings.setValue(
-                "presets",
-                msgspec.json.encode(presets).decode("utf-8"),
-            )
-            settings.setValue(
-                "selected_preset",
-                self._selected_preset_name() or "",
-            )
-        finally:
-            settings.endGroup()
+        with settings.group("RasterScan"):
+            config = msgspec.json.encode(self.config()).decode("utf-8")
+            settings.set("config", config)
+
+            presets = msgspec.json.encode(presets).decode("utf-8")
+            settings.set("presets", presets)
+
+            selected_preset = self._selected_preset_name() or ""
+            settings.set("selected_preset", selected_preset)
