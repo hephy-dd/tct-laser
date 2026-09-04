@@ -31,6 +31,7 @@ from ..core.service import BackgroundService
 from ..core.worker import Worker
 from ..operations import RasterScanWidget, ZScanWidget
 from . import config
+from .adapters import SettingsAdapter
 from .dashboard import DashboardWidget, Position
 from .logwidget import LogWidget
 from .operation import OperationWidget
@@ -102,8 +103,7 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         self._background_service.start()
 
-        self._settings = QtCore.QSettings()
-        self.read_settings(self._settings)
+        self.read_settings()
 
     def _create_actions(self) -> None:
         self._quit_action = QtGui.QAction("&Quit", self)
@@ -257,54 +257,52 @@ class MainWindow(QtWidgets.QMainWindow):
         self._dashboard_widget.add_operation(operation)
         self._operation_start_actions.append(start_action)
 
-    def read_settings(self, settings: QtCore.QSettings) -> None:
-        settings.beginGroup("MainWindow")
-        geometry = settings.value("geometry")
-        state = settings.value("state")
-        instruments = settings.value("instruments")
-        connections = settings.value("connections")
-        scope_channels = settings.value("scope_channels")
-        sample_name = settings.value("sample_name", "Unnamed", type=str)
-        output_path = settings.value("output_path", str(Path.home()), type=str)
-        stage_psoitions = settings.value("stage_positions")
-        settings.endGroup()
+    def read_settings(self) -> None:
+        settings = SettingsAdapter(QtCore.QSettings())
 
-        if isinstance(geometry, QtCore.QByteArray):
+        with settings.group("MainWindow"):
+            geometry = settings.get("geometry", QtCore.QByteArray())
             self.restoreGeometry(geometry)
-        if isinstance(state, QtCore.QByteArray):
+
+            state = settings.get("state", QtCore.QByteArray())
             self.restoreState(state)
-        if isinstance(instruments, str):
+
+            instruments = settings.get("instruments", "")
             self.restore_instruments(instruments)
-        if isinstance(connections, str):
+
+            connections = settings.get("connections", "")
             self.restore_connections(connections)
-        if isinstance(scope_channels, str):
+
+            scope_channels = settings.get("scope_channels", "")
             self.restore_scope_channels(scope_channels)
-        if isinstance(sample_name, str):
+
+            sample_name = settings.get("sample_name", "Unnamed")
             self._dashboard_widget.set_sample_name(sample_name)
-        if isinstance(output_path, str):
+
+            output_path = settings.get("output_path", str(Path.home()))
             self._dashboard_widget.set_output_path(output_path)
-        if isinstance(stage_psoitions, str):
-            self.restore_stage_positions(stage_psoitions)
+
+            stage_positions = settings.get("stage_positions", "")
+            self.restore_stage_positions(stage_positions)
 
         for widget in self._dashboard_widget.operation_widgets():
-            widget.read_settings(settings)
+            widget.read_settings()
 
-    def write_settings(self, settings: QtCore.QSettings) -> None:
-        settings.beginGroup("MainWindow")
+    def write_settings(self) -> None:
+        settings = SettingsAdapter(QtCore.QSettings())
 
-        settings.setValue("geometry", self.saveGeometry())
-        settings.setValue("state", self.saveState())
-        settings.setValue("instruments", self.save_instruments())
-        settings.setValue("connections", self.save_connections())
-        settings.setValue("scope_channels", self.save_scope_channels())
-        settings.setValue("sample_name", self._dashboard_widget.sample_name())
-        settings.setValue("output_path", self._dashboard_widget.output_path())
-        settings.setValue("stage_positions", self.save_stage_positions())
-
-        settings.endGroup()
+        with settings.group("MainWindow"):
+            settings.set("geometry", self.saveGeometry())
+            settings.set("state", self.saveState())
+            settings.set("instruments", self.save_instruments())
+            settings.set("connections", self.save_connections())
+            settings.set("scope_channels", self.save_scope_channels())
+            settings.set("sample_name", self._dashboard_widget.sample_name())
+            settings.set("output_path", self._dashboard_widget.output_path())
+            settings.set("stage_positions", self.save_stage_positions())
 
         for widget in self._dashboard_widget.operation_widgets():
-            widget.write_settings(settings)
+            widget.write_settings()
 
     def save_instruments(self) -> str:
         try:
@@ -546,7 +544,7 @@ class MainWindow(QtWidgets.QMainWindow):
     @QtCore.Slot()
     def show_settings(self) -> None:
         dialog = SettingsDialog(self)
-        dialog.read_settings(self._settings)
+        dialog.read_settings()
 
         for name, actor in self._context.station.actors().items():
             resource_config = actor.resource_config()
@@ -570,7 +568,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     )
                 )
 
-        dialog.write_settings(self._settings)
+        dialog.write_settings()
 
     @QtCore.Slot()
     def show_contents(self) -> None:
@@ -595,7 +593,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._context.shutdown()
             self._background_service.stop()
             self._state_machine.stop()
-            self.write_settings(self._settings)
+            self.write_settings()
             event.accept()
         else:
             event.ignore()

@@ -9,6 +9,7 @@ from ..core.resource import (
     list_resources,
 )
 from ..core.station import Role
+from .adapters import SettingsAdapter
 
 __all__ = ["SettingsDialog"]
 
@@ -108,17 +109,18 @@ class SettingsDialog(QtWidgets.QDialog):
         except KeyError as exc:
             raise ValueError(f"Unknown instrument: {name}") from exc
 
-    def read_settings(self, settings: QtCore.QSettings) -> None:
-        settings.beginGroup("SettingsDialog")
-        geometry = settings.value("geometry")
-        settings.endGroup()
-        if isinstance(geometry, QtCore.QByteArray):
+    def read_settings(self) -> None:
+        settings = SettingsAdapter(QtCore.QSettings())
+
+        with settings.group("SettingsDialog"):
+            geometry = settings.get("geometry", QtCore.QByteArray())
             self.restoreGeometry(geometry)
 
-    def write_settings(self, settings: QtCore.QSettings) -> None:
-        settings.beginGroup("SettingsDialog")
-        settings.setValue("geometry", self.saveGeometry())
-        settings.endGroup()
+    def write_settings(self) -> None:
+        settings = SettingsAdapter(QtCore.QSettings())
+
+        with settings.group("SettingsDialog"):
+            settings.set("geometry", self.saveGeometry())
 
     def instrument_model(self, name: str) -> str:
         return self.instrument_widget(name).model()
